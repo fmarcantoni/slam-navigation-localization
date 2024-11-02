@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
+import math
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Twist
@@ -43,18 +44,18 @@ class Lab2:
 
         # linear velocity
         msg_cmd_vel.linear.x = linear_speed
-        msg.cmd_vel.linear.y = 0.0
-        msg.cmd_vel.linear.z = 0.0
+        msg_cmd_vel.linear.y = 0.0
+        msg_cmd_vel.linear.z = 0.0
 
         # angular velocity
-        msg.cmd_vel.angular.x = 0.0
-        msg.cmd_vel.angular.y = 0.0
-        msg.cmd_vel.angular.z = angular_speed
+        msg_cmd_vel.angular.x = 0.0
+        msg_cmd_vel.angular.y = 0.0
+        msg_cmd_vel.angular.z = angular_speed
 
         ### Publish the message
         self.cmd_vel.Publish(msg_cmd_vel)
         r = rospy.Rate(10) # 10hz
-        r.sleep
+        r.sleep()
 
     
         
@@ -89,7 +90,7 @@ class Lab2:
 
 
     def rotate(self, angle: float, aspeed: float):
-       """
+        """
         Rotates the robot around the body center by the given angle.
         :param angle         [float] [rad]   The distance to cover.
         :param angular_speed [float] [rad/s] The angular speed.
@@ -134,7 +135,7 @@ class Lab2:
         current_y = self.py
         current_heading = self.pth
 
-        # exstract final pose of the robot
+        # extract final pose of the robot
         target_x = msg.pose.position.x
         target_y = msg.pose.position.y
         (roll, pitch, yaw) = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
@@ -191,7 +192,7 @@ class Lab2:
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
 
-        quat_orig = mes.pose.pose.orientation
+        quat_orig = msg.pose.pose.orientation
         quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
 
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
@@ -208,9 +209,32 @@ class Lab2:
         :param linear_speed [float] [m/s] The maximum forward linear speed.
         """
         ### EXTRA CREDIT
-        # TODO
-        pass # delete this when you implement your code
+        self.send_speed(0.0, 0.0)
+        init_x = self.px
+        init_y = self.py
+        kp = 0.5 # some kp, adjust with testing as needed
+        max_speed = 0.1 # some max speed, adjust with testing as needed
 
+        current_distance = 0
+
+        # keeps running until reach target distance
+        while distance - current_distance > 0.001:
+            # proportional control
+            error = distance - current_distance
+            motor_effort = kp * error
+            if motor_effort > max_speed:
+                motor_effort = max_speed
+            self.send_speed(motor_effort, 0.0)
+            current_x = self.px
+            current_y = self.py
+
+            # calculate current distance travelled
+            current_distance = math.sqrt((self.px - init_x) ** 2 + (self.py - init_y) ** 2)
+
+            rospy.sleep(0.05)
+
+        # stop the robot
+        self.send_speed(0.0, 0.0)
 
 
     def run(self):
