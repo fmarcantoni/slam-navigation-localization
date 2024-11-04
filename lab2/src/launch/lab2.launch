@@ -1,0 +1,17 @@
+<launch>
+  <!-- Empty Gazebo World -->
+  <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch" />
+  <!-- RViz -->
+  <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch" />
+  <!-- Tutlebot RViz -->
+  <!-- <include file="$(find turtlebot3_bringup)/launch/turtlebot3_model.launch" /> -->
+    <!-- RViz
+  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
+    <arg name="model" value="burger"/>
+  </include>
+
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find turtlebot3_gazebo)/rviz/turtlebot3_gazebo_model.rviz"/> -->
+
+    <!-- Python Node -->
+    <node pkg="lab2" name="lab2" type="lab2.py"> </node>
+</launch>
