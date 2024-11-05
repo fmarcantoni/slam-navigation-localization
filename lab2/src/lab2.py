@@ -20,7 +20,7 @@ class Lab2:
         self.cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
         ### When a message is received, call self.update_odometry
-        rospy.Subscriber('/odom', self.update_odometry)
+        rospy.Subscriber('/odom', Odometry, self.update_odometry)
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
@@ -158,7 +158,7 @@ class Lab2:
             else: 
                 rotate_speed = -1
 
-        self.rotate(first_angle. rotate_speed)
+        self.rotate(first_angle, rotate_speed)
 
         travel_distance = math.sqrt((target_x - current_x) ** 2 + (target_y - current_y) ** 2)
 
@@ -177,7 +177,7 @@ class Lab2:
             else: 
                 rotate_speed = -1
 
-        self.rotate(final_angle. rotate_speed)
+        self.rotate(final_angle, rotate_speed)
 
 
 
@@ -197,8 +197,6 @@ class Lab2:
 
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = yaw
-
-        pass # delete this when you implement your code
 
 
 
