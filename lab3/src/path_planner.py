@@ -221,7 +221,7 @@ class PathPlanner:
         path  = self.a_star(cspacedata, start, goal)
         ## Optimize waypoints
         waypoints = PathPlanner.optimize_path(path)
-        ## Return a Path message
+        ## Rpath_to_message(mapdata, waypoineturn a Path message
         return self.path_to_message(mapdata, waypoints)
 
 
