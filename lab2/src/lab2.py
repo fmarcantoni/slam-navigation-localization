@@ -2,6 +2,7 @@
 
 import rospy
 import math
+import angles
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Twist
@@ -53,7 +54,7 @@ class Lab2:
         msg_cmd_vel.angular.z = angular_speed
 
         ### Publish the message
-        self.cmd_vel.Publish(msg_cmd_vel)
+        self.cmd_vel.publish(msg_cmd_vel)
         r = rospy.Rate(10) # 10hz
         r.sleep()
 
@@ -103,6 +104,7 @@ class Lab2:
 
         target_heading = init_pth + angle
 
+        
         # checks if the current heading is greater that 2pi. If it is, corrects it to be less than 2pi ...
         if target_heading > 2*math.pi:
             while target_heading > 2*math.pi:
@@ -113,7 +115,7 @@ class Lab2:
 
         current_heading = 0
 
-        while abs(target_heading - current_heading) > 0.01:
+        while abs(target_heading - current_heading) > 0.1:
             self.send_speed(0.0, aspeed)
             current_heading = self.pth + math.pi
             rospy.sleep(0.05)
@@ -211,12 +213,12 @@ class Lab2:
         init_x = self.px
         init_y = self.py
         kp = 0.5 # some kp, adjust with testing as needed
-        max_speed = 0.1 # some max speed, adjust with testing as needed
+        max_speed = 10 # some max speed, adjust with testing as needed
 
         current_distance = 0
 
         # keeps running until reach target distance
-        while distance - current_distance > 0.001:
+        while distance - current_distance > 0.1:
             # proportional control
             error = distance - current_distance
             motor_effort = kp * error
@@ -236,6 +238,7 @@ class Lab2:
 
 
     def run(self):
+        self.send_speed(0.0, 0.0)
         rospy.spin()
 
 if __name__ == '__main__':

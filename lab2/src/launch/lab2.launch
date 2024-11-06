@@ -1,20 +1,19 @@
 <launch>
   <!-- Argument: TRUE if simulation, otherwise FALSE -->
-  <arg name="sim" default="true" />
+  <arg name="sim" default="false" />
 
   <group if="$(arg sim)">
     <!-- Gazebo World Nodes -->
-    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch" />
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch"/>
   </group>
 
-  <group unless="$(arg sim)" />
+  <!-- <group unless="$(arg sim)" > -->
     <!-- Robot Nodes -->
-    <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch" />
-    <!-- <include file="$(find turtlebot3_bringup)/launch/turtlebot3_model.launch" /> -->
-  </group>
+    <!-- <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch"/> -->
+  <!-- </group> -->
 
   <!-- RViz Nodes -->
-  <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch" />
+  <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch"/>
 
   <!-- Python Node -->
   <node pkg="lab2" name="lab2" type="lab2.py"> </node>
