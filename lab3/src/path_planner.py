@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
+from priority_queue import PriorityQueue
+
 import math
 import rospy
+import copy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
@@ -21,15 +24,18 @@ class PathPlanner:
         rospy.init_node("path_planner")
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        # TODO
+        plan_path.rospy.Service("plan_path", GetPlan, self.plan_path, buff_size=65536)
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
-        # TODO
+        self.c_space = rospy.Publisher("path_planner/cspace", GridCells, queue_size=10)
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose a the topic names, the message type is GridCells
-        # TODO
+        self.expanded_cells = rospy.Publisher("path_planner/expanded_cells", GridCells, queue_size=10)
+        self.frontier = rospy.Publisher("path_planner/frontier", GridCells, queue_size=10)
+        self.heuristic = rospy.Publisher("path_planner/heuristic", GridCells, queue_size=10)# future
+        self.path_viz = rospy.Publisher("path_planner/viz", GridCells, queue_size=10)
         ## Initialize the request counter
-        # TODO
+        request_counter = 0
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -44,7 +50,9 @@ class PathPlanner:
         :return  [int] The index.
         """
         ### REQUIRED CREDIT
-        pass
+        
+        # calculates index based on grid coords
+        return index = mapdata.info.width * p[1] + p[0]
 
 
 
@@ -57,7 +65,7 @@ class PathPlanner:
         :return   [float]          distance.
         """
         ### REQUIRED CREDIT
-        pass
+        return math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1]-p1[1]) ** 2)
         
 
 
@@ -70,7 +78,19 @@ class PathPlanner:
         :return        [Point]         The position in the world.
         """
         ### REQUIRED CREDIT
-        pass
+        
+        # save info about map origin
+        origin_x = mapdata.info.origin.position.x 
+        origin_y = mapdata.info.origin.position.y
+
+        resolution = mapdata.info.resolution
+
+        # perform conversion
+
+        world_x = (p[0] + 0.5) * resolution + origin_x
+        world_y = (p[1] + 0.5) * resolution + origin_y
+
+        return Point(world_x, world_y, 0)
 
 
         
@@ -83,8 +103,19 @@ class PathPlanner:
         :return        [(int,int)]     The cell position as a tuple.
         """
         ### REQUIRED CREDIT
-        pass
+        world_x = mapdata.info.origin.position.x
+        world_y = mapdata.info.origin.position.y
 
+        resolution = mapdata.info.resolution
+
+        world_x = wp.x
+        world_y = wp.y
+
+        # converts world to grid
+        grid_x = (world_x - origin_x)/resolution
+        grid_y = (world_y - origin_y)/resolution
+
+        return (grid_x, grid_y)
 
         
     @staticmethod
@@ -96,7 +127,20 @@ class PathPlanner:
         :return        [[PoseStamped]] The path as a list of PoseStamped (world coordinates).
         """
         ### REQUIRED CREDIT
-        pass
+        world_poses = []
+
+        # creates a list of poses that the robot must go to get to the goal
+        for coordinate in path:
+            coordinate_pose = PoseStamped()
+            world = PathPlanner.grid_to_world(mapdata, coordinate)
+
+            coordinate_pose.pose.position.x = world.x
+            coordinate_pose.pose.position.y = world.y
+            cordinate_pose.header.frame_id = '/map'
+
+            world_poses.append(coordinate_pose)
+
+        return world_poses
 
     
 
@@ -111,7 +155,15 @@ class PathPlanner:
         :return        [bool]          True if the cell is walkable, False otherwise
         """
         ### REQUIRED CREDIT
-        pass
+        # get index of grid coordinate in list
+        index = PathPlanner.grid_to_index(mapdata, p)
+
+        # checks if grid is witihn boundaries of grid && free
+        if mapdata.data[index] == 0:
+            return True
+        return False
+
+
 
                
 
@@ -124,9 +176,23 @@ class PathPlanner:
         :return        [[(int,int)]]   A list of walkable 4-neighbors.
         """
         ### REQUIRED CREDIT
-        pass
 
-    
+        can_walk = []
+
+        # truncates for ints
+        x_coordinate = int(p[0])
+        y_coordinate = int(p[1])
+
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate, y_coordinate + 1)): # N
+            can-walk.append((x_coordinate, y_coordinate + 1))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate + 1, y_coordinate)): # E
+            can-walk.append((x_coordinate + 1, y_coordinate))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate, y_coordinate - 1)): # S
+            can-walk.append((x_coordinate, y_coordinate - 1))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate + 1)): # W
+            can-walk.append((x_coordinate - 1, y_coordinate))
+
+        return can_walk
     
     @staticmethod
     def neighbors_of_8(mapdata: OccupancyGrid, p: tuple[int, int]) -> list[tuple[int, int]]:
@@ -137,7 +203,32 @@ class PathPlanner:
         :return        [[(int,int)]]   A list of walkable 8-neighbors.
         """
         ### REQUIRED CREDIT
-        pass
+        
+        can_walk = []
+
+        # truncates for ints
+        x_coordinate = int(p[0])
+        y_coordinate = int(p[1])
+
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate, y_coordinate + 1)): # N
+            can-walk.append((x_coordinate, y_coordinate + 1))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate + 1, y_coordinate)): # E
+            can-walk.append((x_coordinate + 1, y_coordinate))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate, y_coordinate - 1)): # S
+            can-walk.append((x_coordinate, y_coordinate - 1))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate + 1)): # W
+            can-walk.append((x_coordinate - 1, y_coordinate))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate + 1, y_coordinate + 1)): # NE
+            can-walk.append((x_coordinate + 1, y_coordinate + 1))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate + 1)): # NW
+            can-walk.append((x_coordinate - 1, y_coordinate + 1))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate + 1, y_coordinate - 1)): # SE
+            can-walk.append((x_coordinate, y_coordinate - 1))
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate - 1)): # SW
+            can-walk.append((x_coordinate - 1, y_coordinate - 1))
+
+        return can_walk
+    
 
     
     
@@ -150,6 +241,8 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         rospy.loginfo("Requesting the map")
+        req = rospy.wait_for_message("/map", OccupancyGrid, timeout = 5)
+        return req
 
 
 
@@ -165,11 +258,40 @@ class PathPlanner:
         rospy.loginfo("Calculating C-Space")
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
-        # TODO
+    
+        # save grid info, does not change data
+        grid = list(copy.deepcopy(mapdata.data))
+        width = mapdata.info.width
+        height = mapdata.info.height
+
+        edited_cells = []
+
+        # loop through cells
+        for w in range(width):
+            for h in range(height):
+                if mapdata.data[PathPlaner.grid_to_index(mapdata, [w,h])] == 100: # check if there is an obstacle
+                    # if so, goes through nearby cells and changes them to blocked
+                    for i in range (max(0, w - padding), min (width, w + padding + 1)):
+                        for j in range(max(0, h - padding), min(height, h + padding + 1))
+                        # only changes unblocked cells and adds them to a list of edited cells
+                            if mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j])] != 100:
+                                grid[PathPlanner.grid_to_index(mapdata, (i, j))] = 100
+                                cell = PathPlanner.grid_to_world(mapdata, [i, j])
+                                edited_cells.append(cell)
+
         ## Create a GridCells message and publish it
-        # TODO
+        grid_cells = GridCells()
+        grid_cells.header.frame_id = "/map"
+        grid_cells.cell_width = mapdata.info.resolution
+        grid_cells.cell_height = mapdata.info.resolution
+        grid_cells = edited_cells
+        self.c_space.publish(grid_cells)
+
         ## Return the C-space
-        pass
+        occupancy_grid = OccupancyGrid()
+        occupancy_grid = mapdata
+        occupancy_grid.data = grid
+        return occupancy_grid
 
 
     
