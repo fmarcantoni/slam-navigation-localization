@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 
 import math
@@ -21,15 +22,17 @@ class PathPlanner:
         rospy.init_node("path_planner")
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        # TODO
+        s = rospy.Service('plan_path', GetPlan, self.path_plan())
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
-        # TODO
+        self.cspace = rospy.Publisher('/path_planner/cspace', GridCells, queue_size = 10)
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose a the topic names, the message type is GridCells
-        # TODO
-        ## Initialize the request counter
-        # TODO
+        self.expanded_cells = rospy.Publisher('/path_planner/expanded_cells/'. GridCells, queue_size = 10)
+        self.frontier = rospy.Publisher('/path_planner/frontier/', GridCells, queue_size = 10)
+	self.heuristic = rospy.Publisher('/path_planner/heuristic/', GridCells, queue_size = 10)
+	## Initialize the request counter
+        request_counter = 0 
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -43,8 +46,12 @@ class PathPlanner:
         :param p [(int, int)] The cell coordinate.
         :return  [int] The index.
         """
-        ### REQUIRED CREDIT
-        pass
+	if p[0] == 0: 
+		return p[1]
+	elif p[0] == 1:
+		return p[1] + 4
+	else:
+		return p[1] = 8
 
 
 
@@ -56,8 +63,8 @@ class PathPlanner:
         :param p2 [(float, float)] second point.
         :return   [float]          distance.
         """
-        ### REQUIRED CREDIT
-        pass
+        distance = math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
+	return distance 
         
 
 
@@ -69,8 +76,14 @@ class PathPlanner:
         :param p [(int, int)] The cell coordinate.
         :return        [Point]         The position in the world.
         """
-        ### REQUIRED CREDIT
-        pass
+	origin_x = mapdata.info.origin.position.x
+	origin_y = mapdata.info.origin.position.y
+	map_resolution = mapdata.info.resolution
+	
+	# add to the coordinates 0.5 to be at the center of the robot
+	world_x = (p[0] + 0.5) * map_resolution + origin_x
+	world_y = (p[1] + 0.5) * map_resolution + origin_y
+	return (world_x, world_y, 0)
 
 
         
