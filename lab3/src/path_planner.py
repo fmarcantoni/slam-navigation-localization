@@ -24,7 +24,7 @@ class PathPlanner:
         
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        s = rospy.Service('plan_path', GetPlan, self.plan_path)
+        self.srv = rospy.Service('plan_path', GetPlan, self.plan_path)
         
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
@@ -217,22 +217,20 @@ class PathPlanner:
         #write into the terminal
         rospy.loginfo("Requesting the map")
 
-        rospy.wait_for_service('static_map')
+        # rospy.wait_for_service('static_map')
 
         try:
             get_map = rospy.ServiceProxy('static_map', GetMap)
             
             # Call the servie to get the map
-            map_response = get_map()
-            print(map_response.map)
+            map_response = get_map().map
+            print(map_response)
 
             #return an occupancy grid of. The map data is inside the 'map' field of the response
-            return map_response.map
+            return map_response
         
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
-        except rospy.ROSInterruptException:
-            print("ROS interrup exeption while waiting for service")
             return None
 
 
@@ -342,11 +340,11 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
+        PathPlanner.request_map()
         rospy.spin()
 
 
         
 if __name__ == '__main__':
-    PathPlanner().request_map()
     PathPlanner().run()
-
+    
