@@ -5,6 +5,8 @@ import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
+from typing import Tuple as Tuple
+from typing import List as List
 
 
 
@@ -22,7 +24,7 @@ class PathPlanner:
         
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        s = rospy.Service('plan_path', GetPlan, plan_path)
+        s = rospy.Service('plan_path', GetPlan, self.plan_path)
         
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
@@ -46,7 +48,7 @@ class PathPlanner:
 
 
     @staticmethod
-    def grid_to_index(mapdata: OccupancyGrid, p: tuple[int, int]) -> int:
+    def grid_to_index(mapdata: OccupancyGrid, p: Tuple[int, int]) -> int:
         """
         Returns the index corresponding to the given (x,y) coordinates in the occupancy grid.
         :param p [(int, int)] The cell coordinate.
@@ -62,7 +64,7 @@ class PathPlanner:
 
 
     @staticmethod
-    def euclidean_distance(p1: tuple[float, float], p2: tuple[float, float]) -> float:
+    def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
         """
         Calculates the Euclidean distance between two points.
         :param p1 [(float, float)] first point.
@@ -76,7 +78,7 @@ class PathPlanner:
 
 
     @staticmethod
-    def grid_to_world(mapdata: OccupancyGrid, p: tuple[int, int]) -> Point:
+    def grid_to_world(mapdata: OccupancyGrid, p: Tuple[int, int]) -> Point:
         """
         Transforms a cell coordinate in the occupancy grid into a world coordinate.
         :param mapdata [OccupancyGrid] The map information.
@@ -97,7 +99,7 @@ class PathPlanner:
 
         
     @staticmethod
-    def world_to_grid(mapdata: OccupancyGrid, wp: Point) -> tuple[int, int]:
+    def world_to_grid(mapdata: OccupancyGrid, wp: Point) -> Tuple[int, int]:
         """
         Transforms a world coordinate into a cell coordinate in the occupancy grid.
         :param mapdata [OccupancyGrid] The map information.
@@ -117,7 +119,7 @@ class PathPlanner:
 
         
     @staticmethod
-    def path_to_poses(mapdata: OccupancyGrid, path: list[tuple[int, int]]) -> list[PoseStamped]:
+    def path_to_poses(mapdata: OccupancyGrid, path: List[Tuple[int, int]]) -> List[PoseStamped]:
         """
         Converts the given path into a list of PoseStamped.
         :param mapdata [OccupancyGrid] The map information.
@@ -153,7 +155,7 @@ class PathPlanner:
     
 
     @staticmethod
-    def is_cell_walkable(mapdata:OccupancyGrid, p: tuple[int, int]) -> bool:
+    def is_cell_walkable(mapdata:OccupancyGrid, p: Tuple[int, int]) -> bool:
         """
         A cell is walkable if all of these conditions are true:
         1. It is within the boundaries of the grid;
@@ -179,7 +181,7 @@ class PathPlanner:
                
 
     @staticmethod
-    def neighbors_of_4(mapdata: OccupancyGrid, p: tuple[int, int]) -> list[tuple[int, int]]:
+    def neighbors_of_4(mapdata: OccupancyGrid, p: Tuple[int, int]) -> List[Tuple[int, int]]:
         """
         Returns the walkable 4-neighbors cells of (x,y) in the occupancy grid.
         :param mapdata [OccupancyGrid] The map information.
@@ -192,7 +194,7 @@ class PathPlanner:
     
     
     @staticmethod
-    def neighbors_of_8(mapdata: OccupancyGrid, p: tuple[int, int]) -> list[tuple[int, int]]:
+    def neighbors_of_8(mapdata: OccupancyGrid, p: Tuple[int, int]) -> List[Tuple[int, int]]:
         """
         Returns the walkable 8-neighbors cells of (x,y) in the occupancy grid.
         :param mapdata [OccupancyGrid] The map information.
@@ -212,7 +214,27 @@ class PathPlanner:
                                 None in case of error.
         """
         ### REQUIRED CREDIT
+        #write into the terminal
         rospy.loginfo("Requesting the map")
+
+        rospy.wait_for_service('static_map')
+
+        try:
+            get_map = rospy.ServiceProxy('static_map', GetMap)
+            
+            # Call the servie to get the map
+            map_response = get_map()
+            print(map_response.map)
+
+            #return an occupancy grid of. The map data is inside the 'map' field of the response
+            return map_response.map
+        
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+        except rospy.ROSInterruptException:
+            print("ROS interrup exeption while waiting for service")
+            return None
+
 
 
 
@@ -228,22 +250,49 @@ class PathPlanner:
         rospy.loginfo("Calculating C-Space")
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
-        # TODO
         ## Create a GridCells message and publish it
-        # TODO
         ## Return the C-space
-        pass
+
+        width = mapdata.info.width
+        height = mapdata.info.height
+
+        # run through all the rows, and change the values next to the unwakable cells to also be unwakable
+        for j in range(height):                                                             # iterate throgh all the rows
+            for i in range(width):                                                          # in each row, iterate through
+                if not PathPlanner.is_cell_wakable(mapdata, [i, j]) and (width !=1):        # make sure that the row is not only one block long
+                    
+                    for x in range(padding + 1):
+                        if i == 0:
+                            mapdata.dat[PathPlanner.grid_to_index(mapdata, [i + x, j])] = 100
+                        elif i == (width - 1):
+                            mapdata.data[PathPlanner.grid_to_index(mapdata, [i - x, j])] = 100
+                        else:
+                            mapdata.data[PathPlanner.grid_to_index(mapdata, [i + x, j])] = 100
+                            mapdata.data[PathPlanner.grid_to_index(mapdata, [i - x, j])] = 100
+
+        for i in range(width):
+            for j in range(height):
+                if not PathPlanner.is_cell_wakable(mapdata, [i, j]) and (height !=1):        # make sure that the row is not only one block long
+                    if j == 0:
+                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j + 1])] = 100
+                    elif j == (height - 1):
+                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j - 1])] = 100
+                    else:
+                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j + 1])] = 100
+                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j - 1])] = 100
+
+        return mapdata
 
 
     
-    def a_star(self, mapdata: OccupancyGrid, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
+    def a_star(self, mapdata: OccupancyGrid, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
         ### REQUIRED CREDIT
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
 
     
     @staticmethod
-    def optimize_path(path: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    def optimize_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
         """
         Optimizes the path, removing unnecessary intermediate nodes.
         :param path [[(x,y)]] The path as a list of tuples (grid coordinates)
@@ -254,7 +303,7 @@ class PathPlanner:
 
         
 
-    def path_to_message(self, mapdata: OccupancyGrid, path: list[tuple[int, int]]) -> Path:
+    def path_to_message(self, mapdata: OccupancyGrid, path: List[Tuple[int, int]]) -> Path:
         """
         Takes a path on the grid and returns a Path message.
         :param path [[(int,int)]] The path on the grid (a list of tuples)
@@ -298,4 +347,6 @@ class PathPlanner:
 
         
 if __name__ == '__main__':
+    PathPlanner().request_map()
     PathPlanner().run()
+
