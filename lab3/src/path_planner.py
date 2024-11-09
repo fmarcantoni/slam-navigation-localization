@@ -19,17 +19,26 @@ class PathPlanner:
         ### REQUIRED CREDIT
         ## Initialize the node and call it "path_planner"
         rospy.init_node("path_planner")
+        
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        # TODO
+        s = rospy.Service('plan_path', GetPlan, plan_path)
+        
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
-        # TODO
+        self.cSpacePub = rospy.Publisher('/path_planner/cspace', GridCells, queue_size=10)
+        
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose a the topic names, the message type is GridCells
-        # TODO
+        self.expandedCellsPub = rospy.Publisher('/path_planner/expanded_cells', GridCells, queue_size=10)
+        self.frontierPub = rospy.Publisher('/path_planner/frontier', GridCells, queue_size=10)
+        self.heuristicsPub = rospy.Publisher('/path_planner/heuristics', GridCells, queue_size=10)
+        self.visualPub = rospy.Publisher('/path_planner/visual', GridCells, queue_size=10)
+
         ## Initialize the request counter
-        # TODO
+        request_counter = 0
+        thresholdOccupied = 50
+
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -44,7 +53,11 @@ class PathPlanner:
         :return  [int] The index.
         """
         ### REQUIRED CREDIT
-        pass
+        width = mapdata.info.width
+        height = mapdata.info.height
+        # index = mapdata(width*(p[1] - 1) + (p[0] - 1)) #this is for 0, 0 on the top right
+        index = mapdata(width*height - width*p[1] - (width - p[0])) #this is for 0,0 being in the bottom left, and counting coordinates like normal
+        return index
 
 
 
@@ -57,7 +70,8 @@ class PathPlanner:
         :return   [float]          distance.
         """
         ### REQUIRED CREDIT
-        pass
+        distance = ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2) ** 0.5
+        return distance
         
 
 
@@ -70,7 +84,15 @@ class PathPlanner:
         :return        [Point]         The position in the world.
         """
         ### REQUIRED CREDIT
-        pass
+        res = OccupancyGrid.info.resolution     #meters/cell
+        originPose = OccupancyGrid.info.origin
+        wp = Point()
+        
+        wp.x = p[0]*res + originPose.position.x
+        wp.y = p[1]*res + originPose.position.y
+        wp.z = 0 + originPose.position.z
+
+        return wp
 
 
         
@@ -83,7 +105,14 @@ class PathPlanner:
         :return        [(int,int)]     The cell position as a tuple.
         """
         ### REQUIRED CREDIT
-        pass
+        res = OccupancyGrid.info.resolution #meters/cell
+        originPose = OccupancyGrid.info.origin
+
+        wp.x = wp.x - originPose.position.x
+        wp.y = wp.y - originPose.position.y
+
+        p = [wp.x // res, wp.y // res]        #tuple. // truncating division
+        return p
 
 
         
@@ -96,7 +125,30 @@ class PathPlanner:
         :return        [[PoseStamped]] The path as a list of PoseStamped (world coordinates).
         """
         ### REQUIRED CREDIT
-        pass
+        poses = []                                                      # make a list and a PoseStamped to fill up later
+        worldCoordinate = PoseStamped()
+
+        for i in range(len(path)-1):                                    # iterate through all the cell coordinates 
+            cellCoordinate = path[i]
+            if (i != (len(path) - 1)):              
+                nextCellCoordinate = path[i+1]
+            else:                                                       # if you are at the end of the path, don't look further
+                nextCellCoordinate = cellCoordinate
+            
+            # POSITION
+            worldCoordinate.pose.position = PathPlanner.grid_to_world(mapdata, cellCoordinate)  #use grid_to_world for the transformation
+
+            # ORIENTATION
+            dx = nextCellCoordinate[0] - cellCoordinate[0]
+            dy = nextCellCoordinate[1] - cellCoordinate[1]
+            theta = math.atan2(dy,dx)                                   # Use trig to find angle between the world coordinates
+            worldCoordinate.pose.orientation.x = 0                      # Fill out the quaternion for that rotation around the z axis
+            worldCoordinate.pose.orientation.y = 0
+            worldCoordinate.pose.orientation.z = math.sin(theta / 2)
+            worldCoordinate.pose.orientation.w = math.cos(theta / 2)
+
+            poses.append(worldCoordinate)
+        return poses
 
     
 
@@ -111,7 +163,18 @@ class PathPlanner:
         :return        [bool]          True if the cell is walkable, False otherwise
         """
         ### REQUIRED CREDIT
-        pass
+        wakable = True
+        index = PathPlanner.grid_to_index(mapdata, p)
+        cellValue = mapdata.data[index]
+
+        width = mapdata.info.width
+        height = mapdata.info.height
+        notWithin = (p[0] > (width - 1) or p[1] > (height - 1))                                 # not within if coords outside width and height
+
+        if (cellValue == -1 or cellValue > PathPlanner.thresholdOccupied or notWithin):         # if unexplored, probably occupied, or outside of boundaries
+            wakable = False                                                                     # cell is not wakable
+
+        return wakable
 
                
 
