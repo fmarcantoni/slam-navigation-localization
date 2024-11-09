@@ -1,0 +1,8 @@
+<launch>
+    <!-- roslaunch turtlebot3_gazebo-->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch"/>
+    <!-- roslaunch turtlebot3_gazebo turtlebot3_gazebo_rviz.launch-->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch"/>
+    <!-- rosrun lab2 lab2.py-->
+    <node pkg="lab2" name="lab2" type="lab2.py"> </node>
+</launch>
