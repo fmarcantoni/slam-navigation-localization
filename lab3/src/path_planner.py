@@ -25,7 +25,7 @@ class PathPlanner:
         s = rospy.Service('plan_path', GetPlan, self.path_plan())
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
-        self.cspace = rospy.Publisher('/path_planner/cspace', GridCells, queue_size = 10)
+        self.cspace = rospy.Publisher('/path_planner/cspace/', GridCells, queue_size = 10)
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose a the topic names, the message type is GridCells
         self.expanded_cells = rospy.Publisher('/path_planner/expanded_cells/'. GridCells, queue_size = 10)
