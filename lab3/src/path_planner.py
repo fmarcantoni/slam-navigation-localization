@@ -46,12 +46,8 @@ class PathPlanner:
         :param p [(int, int)] The cell coordinate.
         :return  [int] The index.
         """
-	if p[0] == 0: 
-		return p[1]
-	elif p[0] == 1:
-		return p[1] + 4
-	else:
-		return p[1] = 8
+	index = p[1]*mapdata.info.width + p[0]
+	return index
 
 
 
@@ -95,8 +91,14 @@ class PathPlanner:
         :param wp      [Point]         The world coordinate.
         :return        [(int,int)]     The cell position as a tuple.
         """
-        ### REQUIRED CREDIT
-        pass
+        origin_x = mapdata.info.origin.position.x
+	origin_y = mapdata.info.origin.position.y
+	map_resolution = mapdata.info.resolution
+
+	cell_x = ((wp.x - origin_x)/map_resolution) - 0.5
+	cell_y = ((wp.y - origin_y)/map_resolution) - 0.5
+
+	return [cell_x, cell_y]
 
 
         
@@ -108,8 +110,25 @@ class PathPlanner:
         :param  path   [[(int,int)]]   The path as a list of tuples (cell coordinates).
         :return        [[PoseStamped]] The path as a list of PoseStamped (world coordinates).
         """
-        ### REQUIRED CREDIT
-        pass
+        poses = []
+	origin_x = mapdata.info.origin.position.x
+	origin_y = mapdata.info.origin.position.y
+	map_resolution = mapdata.info.resolution
+
+	for cell in path:
+		(world_x, world_y, world_z) = PathPlanner.grid_to_world(mapdata, cell)
+		
+		# create PoseStamped
+		pose = PoseStamped()
+		pose.header.frame_id = mapdata.header.frame_id
+		pose.header.stamp = rospy.Time.now()
+		pose.pose.position.x = world_x
+		pose.pose.position.y = world_y
+		pose.pose.position.z = world_z
+		pose.pose.orientation.w = 1.0
+		poses.append(pose)
+
+	return poses
 
     
 
@@ -123,8 +142,17 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [bool]          True if the cell is walkable, False otherwise
         """
-        ### REQUIRED CREDIT
-        pass
+        index = PathPlanner.grid_to_index(mapdata, p)
+	width = mapdata.info.width
+	height = mapdata.info.height
+	
+	if not ((p[0] >= 0 && p[0] <= width) && (p[1] >= 0 && p[1] <= height)):
+		return False
+	else:
+		if mapdata.info[index] == 100:
+			return False
+		else:
+			return True  
 
                
 
@@ -136,8 +164,20 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [[(int,int)]]   A list of walkable 4-neighbors.
         """
-        ### REQUIRED CREDIT
-        pass
+        walkable_neighbours = []
+	cell_x = p[0]
+	cell_y = p[1]
+
+	if PathPlaner.is_cell_walkable(mapdata, [cell_x + 1, cell_y]):
+		walkable_neighbours.append([cell_x + 1, cell_y])
+	elif PathPlnner.is_cell_walkable(mapdata, [cell_x - 1, cell_y]):
+		walkable_neighbours.append([cell_x - 1, cell_y])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y + 1]):
+		walkable_neighbours.append([cell_x, cell_y + 1])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y - 1]):
+		walkable_neighbours.append([cell_x, cell_y - 1])
+
+	return walkable_neighbours
 
     
     
@@ -149,8 +189,28 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [[(int,int)]]   A list of walkable 8-neighbors.
         """
-        ### REQUIRED CREDIT
-        pass
+        walkable_neighbours = []
+	cell_x = p[0]
+	cell_y = p[1]
+	
+	if PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y - 1]):
+		walkable_neighbours.append([cell_x - 1, cell_y - 1])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y]):
+		walkable_neighbours.append([cell_x - 1, cell_y])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y + 1]):
+		walkable_neighbours.append([cell_x - 1, cell_y + 1])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y - 1]):
+		walkable_neighbours.append([cell_x, cell_y - 1])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y + 1]):
+		walkable_neighbours.append([cell_x, cell_y + 1])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y - 1]):
+		walkable_neighbours.append([cell_x + 1, cell_y - 1])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y]):
+		walkable_neighbours.append([cell_x + 1, cell_y])
+	elif PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y + 1]):
+		walkable_neighbours.append([cell_x + 1, cell_y + 1])
+
+	return walkable_neighbours
 
     
     
