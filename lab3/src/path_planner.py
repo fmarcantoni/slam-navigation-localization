@@ -22,7 +22,7 @@ class PathPlanner:
         rospy.init_node("path_planner")
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        plan_path = rospy.service("plan_path", GetPlan, self.plan_path())
+        plan_path = rospy.Service("plan_path", GetPlan, self.plan_path())
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         self.cspace = rospy.Publisher("/path_planner/cspace", type=GridCells, queue_size=10)
@@ -144,8 +144,8 @@ class PathPlanner:
         maxX = mapdata.info.width
         maxY = mapdata.info.height
         index = PathPlanner.grid_to_index(mapdata, p)
-        if p.x < maxX and p.y < maxY:
-            return mapdata.data[index] == -1 or mapdata.data[index] != 0
+        if 0 <= p[0] < maxX and 0 <= p[1] < maxY:
+            return mapdata.data[index] == 0
         return False
 
                
@@ -246,16 +246,23 @@ class PathPlanner:
         ## Return the C-space
         obstacles = []
         
-        for cell in mapdata:
-            if mapdata.data[PathPlanner.grid_to_index(mapdata, cell)] >= 50:
-                obstacles.append(mapdata.data[cell])
+        for cell in range(len(mapdata.data)):
+            if mapdata.data[cell] >= 50:
+                width = mapdata.info.width
+                x = cell % width
+                y = int(cell / width)
+                obstacles.append((x,y))
         
-        for i in range(padding-1):
+        for i in range(padding):
+            new_obstacles = []
             for obst in obstacles:
-                neighbors = PathPlanner.neighbors_of_8(obst)
+                neighbors = PathPlanner.neighbors_of_8(mapdata, obst)
                 for nbCell in neighbors:
-                    if mapdata.data.index[nbCell] == -1 and mapdata.data[PathPlanner.grid_to_index(mapdata, nbCell)] <= 50:
-                        obstacles.append(mapdata.data[nbCell])
+                    nb_index = PathPlanner.grid_to_index(mapdata, nbCell)
+                    if mapdata.data[nb_index] == 0:
+                        mapdata.data[nb_index] = 100 
+                        new_obstacles.append(nbCell)
+            obstacles.extend(new_obstacles)
         
         for occupied in obstacles:
             mapdata.data[PathPlanner.grid_to_index(mapdata, occupied)] = 100
@@ -269,7 +276,7 @@ class PathPlanner:
         gridCellMesage.cell_width = mapdata.info.resolution
         gridCellMesage.cells = gridcells
         
-        self.cspace.publish(gridcells)        
+        self.cspace.publish(gridCellMesage)        
         
         return mapdata
                         
