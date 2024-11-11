@@ -244,39 +244,44 @@ class PathPlanner:
         ## Inflate the obstacles where necessary
         ## Create a GridCells message and publish it
         ## Return the C-space
-        obstacles = []
+        
+        
+        obstacles = [] # List of obstacles (grid coordinates)
         
         for cell in range(len(mapdata.data)):
-            if mapdata.data[cell] >= 50:
+            if mapdata.data[cell] >= 50: # If cell is an obstacle
                 width = mapdata.info.width
                 x = cell % width
                 y = int(cell / width)
-                obstacles.append((x,y))
+                obstacles.append((x,y)) # Add its grid coordinates to the list of obstacles
         
-        for i in range(padding):
-            new_obstacles = []
-            for obst in obstacles:
-                neighbors = PathPlanner.neighbors_of_8(mapdata, obst)
-                for nbCell in neighbors:
-                    nb_index = PathPlanner.grid_to_index(mapdata, nbCell)
-                    if mapdata.data[nb_index] == 0:
-                        mapdata.data[nb_index] = 100 
-                        new_obstacles.append(nbCell)
-            obstacles.extend(new_obstacles)
+        for i in range(padding): # For each layer of padding
+            new_obstacles = [] # Create a new list of obstacles
+            for obst in obstacles: # For each obstacle cell
+                neighbors = PathPlanner.neighbors_of_8(mapdata, obst) # List of 8 neighbors (grid coordinates)
+                for newCell in neighbors: # For each new neighbor (grid coordinates)
+                    new_index = PathPlanner.grid_to_index(mapdata, newCell) #grab its index in mapdata
+                    if mapdata.data[new_index] == 0: # If unoccupied
+                        mapdata.data[new_index] = 100 # Made cell value 100% occupied
+                        new_obstacles.append(newCell) # Add it to the list of new obstacles (grid coordinates)
+            
+            for j in new_obstacles: #For each grid coordinate
+                if obstacles.count(j) == 0: # If not already in the obstacle list
+                    obstacles.append(j) #Append only the new neighbors' grid coordinates (now occupied)
         
-        for occupied in obstacles:
-            mapdata.data[PathPlanner.grid_to_index(mapdata, occupied)] = 100
+        for occupied in obstacles: # For each occupied grid coordinate
+            mapdata.data[PathPlanner.grid_to_index(mapdata, occupied)] = 100 # Make cell value 100% occupied
         
-        gridcells = []
-        for a in obstacles:
-            gridcells.append(PathPlanner.grid_to_world(mapdata, a))
+        gridcells = [] # List of padded occupied cells (world coordinates)
+        for a in obstacles: #For each occupied cell
+            gridcells.append(PathPlanner.grid_to_world(mapdata, a)) # add the world coordinates
         
-        gridCellMesage = GridCells()
-        gridCellMesage.cell_height = mapdata.info.resolution
-        gridCellMesage.cell_width = mapdata.info.resolution
-        gridCellMesage.cells = gridcells
+        gridCellMessage = GridCells() # Create a gridcells message and set required info
+        gridCellMessage.cell_height = mapdata.info.resolution
+        gridCellMessage.cell_width = mapdata.info.resolution
+        gridCellMessage.cells = gridcells
         
-        self.cspace.publish(gridCellMesage)        
+        self.cspace.publish(gridCellMessage) #Publish mesage to cspace    
         
         return mapdata
                         
