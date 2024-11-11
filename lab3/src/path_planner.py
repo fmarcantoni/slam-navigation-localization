@@ -4,7 +4,8 @@ import math
 import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
-from geometry_msgs.msg import Point, Pose, PoseStamped
+from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
+from collections import Counter
 
 
 
@@ -21,15 +22,17 @@ class PathPlanner:
         rospy.init_node("path_planner")
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        # TODO
+        plan_path = rospy.service(self, GetPlan, self.plan_path())
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
-        # TODO
+        self.cspace = rospy.Publisher("/path_planner/cspace", type=GridCells, queue_size=10)
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose a the topic names, the message type is GridCells
-        # TODO
+        self.expanded_cells = rospy.Publisher("path_planner/expandedcells", type=GridCells, queue_size=10)
+        self.frontier = rospy.Publisher("path_planner/frontier", type=GridCells, queue_size=10)
+        self.heuristic = rospy.Publisher("path_planner/heuristic")
         ## Initialize the request counter
-        # TODO
+        self.counter = Counter()
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -43,8 +46,12 @@ class PathPlanner:
         :param p [(int, int)] The cell coordinate.
         :return  [int] The index.
         """
-        ### REQUIRED CREDIT
-        pass
+        
+        x = p[0]
+        y = p[1]
+        width = mapdata.info.width
+        return width * y + x
+        
 
 
 
@@ -56,8 +63,9 @@ class PathPlanner:
         :param p2 [(float, float)] second point.
         :return   [float]          distance.
         """
-        ### REQUIRED CREDIT
-        pass
+        
+        return math.sqrt((p2[0]-p1[0])**2 + (p2[1]-p1[1])**2)
+
         
 
 
@@ -69,8 +77,13 @@ class PathPlanner:
         :param p [(int, int)] The cell coordinate.
         :return        [Point]         The position in the world.
         """
-        ### REQUIRED CREDIT
-        pass
+        
+        grid_center = mapdata.info.origin.position
+        grid_res = mapdata.info.resolution
+        
+        worldPoint = Point(x = grid_center.x + p[0] * grid_res, y = grid_center.y + p[1] * grid_res, z=0)
+        
+        return worldPoint
 
 
         
@@ -82,8 +95,14 @@ class PathPlanner:
         :param wp      [Point]         The world coordinate.
         :return        [(int,int)]     The cell position as a tuple.
         """
-        ### REQUIRED CREDIT
-        pass
+        
+        grid_center = mapdata.info.origin.position
+        grid_res = mapdata.info.resolution
+        
+        x = int((wp.x - grid_center.x) / grid_res)
+        y = int((wp.y - grid_center.y) / grid_res)
+        
+        return x,y
 
 
         
@@ -95,8 +114,19 @@ class PathPlanner:
         :param  path   [[(int,int)]]   The path as a list of tuples (cell coordinates).
         :return        [[PoseStamped]] The path as a list of PoseStamped (world coordinates).
         """
-        ### REQUIRED CREDIT
-        pass
+        
+        pose = []
+        
+        for coord in path:
+            some_pose = PoseStamped()
+            
+            some_pose.pose.position = PathPlanner.grid_to_world(mapdata, coord)
+            some_pose.pose.orientation = Quaternion(0,0,0,1)
+            some_pose.header.stamp = rospy.Time.now()
+            some_pose.header.frame_id = mapdata.info.origin
+            
+            pose.append(some_pose)
+        return pose
 
     
 
@@ -110,8 +140,13 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [bool]          True if the cell is walkable, False otherwise
         """
-        ### REQUIRED CREDIT
-        pass
+        
+        maxX = mapdata.info.width
+        maxY = mapdata.info.height
+        index = PathPlanner.grid_to_index(mapdata, p)
+        if p.x < maxX and p.y < maxY:
+            return mapdata.data[index] == -1 or mapdata.data[index] != 0
+        return False
 
                
 
@@ -123,9 +158,24 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [[(int,int)]]   A list of walkable 4-neighbors.
         """
-        ### REQUIRED CREDIT
-        pass
-
+        
+        possible = [(p[0], p[1] + 1),   #NORTH
+                    (p[0], p[1] -1),    #SOUTH
+                    (p[0] - 1, p[1]),   #EAST
+                    (p[0] + 1, p[1])]   #WEST
+        
+        neighbors = []
+        
+        maxX = mapdata.info.width
+        maxY = mapdata.info.height
+        
+        for pos in possible:
+            if (0 <= pos[0] < maxX) and (0 <= pos[1] < maxY):
+                if PathPlanner.is_cell_walkable(mapdata, pos):
+                    neighbors.append(pos)
+        
+        return neighbors
+            
     
     
     @staticmethod
@@ -136,8 +186,27 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [[(int,int)]]   A list of walkable 8-neighbors.
         """
-        ### REQUIRED CREDIT
-        pass
+        
+        possible = [(p[0], p[1] + 1),       #NORTH
+                    (p[0] - 1, p[1] + 1),   #NORTHEAST
+                    (p[0] + 1, p[1] + 1),   #NORTHWEST
+                    (p[0], p[1] -1),        #SOUTH
+                    (p[0] - 1, p[1] - 1),   #SOUTHEAST
+                    (p[0] + 1, p[1] - 1),   #SOUTHWEST
+                    (p[0] - 1, p[1]),       #EAST
+                    (p[0] + 1, p[1])]       #WEST
+        
+        neighbors = []
+        
+        maxX = mapdata.info.width
+        maxY = mapdata.info.height
+        
+        for pos in possible:
+            if (0 <= pos[0] < maxX) and (0 <= pos[1] < maxY):
+                if PathPlanner.is_cell_walkable(mapdata, pos):
+                    neighbors.append(pos)
+        
+        return neighbors
 
     
     
@@ -148,8 +217,16 @@ class PathPlanner:
         :return [OccupancyGrid] The grid if the service call was successful,
                                 None in case of error.
         """
-        ### REQUIRED CREDIT
+        
         rospy.loginfo("Requesting the map")
+        rospy.wait_for_service('nav_msgs/OccupancyGrid')
+        
+        try:
+            map = rospy.ServiceProxy('nav_msgs/OccupancyGrid', GetMap)
+            return map()
+        except rospy.ServiceException as e:
+            rospy.loginfo("Service call failed: %s"%e)
+        return None
 
 
 
@@ -165,13 +242,33 @@ class PathPlanner:
         rospy.loginfo("Calculating C-Space")
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
-        # TODO
         ## Create a GridCells message and publish it
-        # TODO
         ## Return the C-space
-        pass
+        obstacles = []
+        
+        for cell in mapdata:
+            if mapdata.data[PathPlanner.grid_to_index(mapdata, cell)] >= 50:
+                obstacles.append[mapdata.data[cell]]
+        
+        for i in range(padding-1):
+            for obst in obstacles:
+                neighbors = PathPlanner.neighbors_of_8(obst)
+                for nbCell in neighbors:
+                    if mapdata.data.index[nbCell] == -1 and mapdata.data[PathPlanner.grid_to_index(mapdata, nbCell)] <= 50:
+                        obstacles.append[mapdata.data[nbCell]]
+        
+        for occupied in obstacles:
+            mapdata.data[PathPlanner.grid_to_index(mapdata, occupied)] = 100
+        
+        return mapdata
+                        
+                        
+            
 
 
+    
+    
+    ##Group Below
     
     def a_star(self, mapdata: OccupancyGrid, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
         ### REQUIRED CREDIT
