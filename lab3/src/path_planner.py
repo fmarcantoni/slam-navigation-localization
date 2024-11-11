@@ -22,7 +22,7 @@ class PathPlanner:
         rospy.init_node("path_planner")
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        plan_path = rospy.service(self, GetPlan, self.plan_path())
+        plan_path = rospy.service("plan_path", GetPlan, self.plan_path())
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         self.cspace = rospy.Publisher("/path_planner/cspace", type=GridCells, queue_size=10)
@@ -30,7 +30,7 @@ class PathPlanner:
         ## Choose a the topic names, the message type is GridCells
         self.expanded_cells = rospy.Publisher("path_planner/expandedcells", type=GridCells, queue_size=10)
         self.frontier = rospy.Publisher("path_planner/frontier", type=GridCells, queue_size=10)
-        self.heuristic = rospy.Publisher("path_planner/heuristic")
+        self.heuristic = rospy.Publisher("path_planner/heuristic", type=GridCells, queue_size=10)
         ## Initialize the request counter
         self.counter = Counter()
         ## Sleep to allow roscore to do some housekeeping
@@ -248,17 +248,28 @@ class PathPlanner:
         
         for cell in mapdata:
             if mapdata.data[PathPlanner.grid_to_index(mapdata, cell)] >= 50:
-                obstacles.append[mapdata.data[cell]]
+                obstacles.append(mapdata.data[cell])
         
         for i in range(padding-1):
             for obst in obstacles:
                 neighbors = PathPlanner.neighbors_of_8(obst)
                 for nbCell in neighbors:
                     if mapdata.data.index[nbCell] == -1 and mapdata.data[PathPlanner.grid_to_index(mapdata, nbCell)] <= 50:
-                        obstacles.append[mapdata.data[nbCell]]
+                        obstacles.append(mapdata.data[nbCell])
         
         for occupied in obstacles:
             mapdata.data[PathPlanner.grid_to_index(mapdata, occupied)] = 100
+        
+        gridcells = []
+        for a in obstacles:
+            gridcells.append(PathPlanner.grid_to_world(mapdata, a))
+        
+        gridCellMesage = GridCells()
+        gridCellMesage.cell_height = mapdata.info.resolution
+        gridCellMesage.cell_width = mapdata.info.resolution
+        gridCellMesage.cells = gridcells
+        
+        self.cspace.publish(gridcells)        
         
         return mapdata
                         
