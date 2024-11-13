@@ -1,0 +1,34 @@
+<launch>
+
+    <arg name="map_file" default="$(find lab3)/maps/simple_map.yaml"/>
+
+    <!-- Runs the map server -->
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+    <!-- Runs the static transform publisher -->
+    <node name="transform" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 /map /odom 100" />
+
+    <!-- Empty Gazebo World -->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch" />
+
+    <!-- Turtlebot Bringup -->
+    <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
+        <arg name="model" value="burger"/>
+    </include>
+
+    <!-- Launch RViz File -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find lab3)/rviz/rbe3002_lab3.rviz"/>
+
+     <!-- Launch path planner -->
+    <node name="path_planner" pkg="lab3" type="path_planner.py" />
+
+     <!-- Launch lab3 listener -->
+    <node name="lab3_listener" pkg="lab3" type="lab3_listener.py" />
+
+     <!-- Launch lab2 -->
+    <node name="lab2" pkg="lab2" type="lab2.py" />
+
+    
+
+
+</launch>
