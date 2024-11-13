@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import math
+from lab3.src import priority_queue
 import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
-
 
 
 class PathPlanner:
@@ -286,18 +286,41 @@ class PathPlanner:
         
         return mapdata
                         
-                        
-            
-
-
-    
-    
-    ##Group Below
     
     def a_star(self, mapdata: OccupancyGrid, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
-        ### REQUIRED CREDIT
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
+        frontier = [(0, start)] # By default the first entry in the tuple is the priority
+        cost_dict = {start: 0} # The cost of the current shortest known paths
+        path_dict = {start: [start]} # The current shortest known path
+        visited = {None} # Our set ("list") of nodes we have visited
+        while frontier:
+            # We will keep track of our frontier with a priority queue
+            (priority, node) = priority_queue.get(frontier)
+            visited.update(node)
+            # We want the algorithm to end when we visit our target node
+            if node == goal:
+                break
+            else:
+                # We will iterate over the current unvisited nodes neighbors
+                unvisited_neighbors = set(mapdata[node].keys()) - visited
+                for neighbor in unvisited_neighbors:
+                    # We visited the current node, so we already know the cost of it's shortest path
+                    # New_cost = cost to the visited node + cost to get from visitied node to neighbor
+                    cost_to_node = cost_dict[node] + mapdata[node][neighbor]
+                    # If the cost is less than what is in our table, we update the table
+                    # and enqueue the neighbor
+                    if (neighbor not in cost_dict) or (cost_to_node < cost_dict[neighbor]):
+                        # If the element does not exists it creates a new one automatically
+                        cost_dict [neighbor] = cost_to_node
+                        path_dict[neighbor] = path_dict[node] + [neighbor]
+                        # This is the difference for Astar
+                        # When we put nodes on the queue, we make the priority
+                        # the cost to the current node + the estimated cost to the goal
+                        heuristic = len(path_dict [node]) + 1
+                        estimated_cost = 1*cost_to_node + 1*heuristic
+                        priority_queue.put(frontier, (estimated_cost, neighbor))
+        return path_dict[goal]
 
     
     @staticmethod
