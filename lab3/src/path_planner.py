@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-
+from __future__ import annotations
 import math
 import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
-from collections import Counter
 
 
 
@@ -30,9 +29,10 @@ class PathPlanner:
         ## Choose a the topic names, the message type is GridCells
         self.expanded_cells = rospy.Publisher("path_planner/expandedcells", GridCells, queue_size=10)
         self.frontier = rospy.Publisher("path_planner/frontier", GridCells, queue_size=10)
-        self.heuristic = rospy.Publisher("path_planner/heuristic", GridCells, queue_size=10)
+        # self.heuristic = rospy.Publisher("path_planner/heuristic", type=GridCells, queue_size=10)
         ## Initialize the request counter
-        self.counter = Counter()
+        # self.counter = Counter()
+        self.map = rospy.wait_for_message("/map", OccupancyGrid)
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -249,7 +249,7 @@ class PathPlanner:
         obstacles = [] # List of obstacles (grid coordinates)
         
         for cell in range(len(mapdata.data)):
-            if mapdata.data[cell] >= 50: # If cell is an obstacle
+            if mapdata.data[cell] > 0: # If cell is an obstacle
                 width = mapdata.info.width
                 x = cell % width
                 y = int(cell / width)
@@ -261,16 +261,16 @@ class PathPlanner:
                 neighbors = PathPlanner.neighbors_of_8(mapdata, obst) # List of 8 neighbors (grid coordinates)
                 for newCell in neighbors: # For each new neighbor (grid coordinates)
                     new_index = PathPlanner.grid_to_index(mapdata, newCell) #grab its index in mapdata
-                    if mapdata.data[new_index] == 0: # If unoccupied
-                        mapdata.data[new_index] = 100 # Made cell value 100% occupied
+                    if mapdata.data[new_index] <= 50: # If unoccupied
+                        #mapdata.data[new_index] = 100 # Made cell value 100% occupied
                         new_obstacles.append(newCell) # Add it to the list of new obstacles (grid coordinates)
             
             for j in new_obstacles: #For each grid coordinate
-                if obstacles.count(j) == 0: # If not already in the obstacle list
-                    obstacles.append(j) #Append only the new neighbors' grid coordinates (now occupied)
+                # if obstacles.count(j) == 0: # If not already in the obstacle list
+                obstacles.append(j) #Append only the new neighbors' grid coordinates (now occupied)
         
-        for occupied in obstacles: # For each occupied grid coordinate
-            mapdata.data[PathPlanner.grid_to_index(mapdata, occupied)] = 100 # Make cell value 100% occupied
+        #for occupied in obstacles: # For each occupied grid coordinate
+         #   mapdata.data[PathPlanner.grid_to_index(mapdata, occupied)] = 100 # Make cell value 100% occupied
         
         gridcells = [] # List of padded occupied cells (world coordinates)
         for a in obstacles: #For each occupied cell
@@ -280,7 +280,8 @@ class PathPlanner:
         gridCellMessage.cell_height = mapdata.info.resolution
         gridCellMessage.cell_width = mapdata.info.resolution
         gridCellMessage.cells = gridcells
-        
+        gridCellMessage.header = mapdata.header
+
         self.cspace.publish(gridCellMessage) #Publish mesage to cspace    
         
         return mapdata
@@ -350,6 +351,7 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
+        self.calc_cspace(self.map, 2)
         rospy.spin()
 
 
