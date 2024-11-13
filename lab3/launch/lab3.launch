@@ -20,15 +20,9 @@
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find lab3)/rviz/rbe3002_lab3.rviz"/>
 
      <!-- Launch path planner -->
-    <node name="path_planner" pkg="lab3" type="path_planner.py" />
+    <node name="path_planner" pkg="lab3" type="path_planner.py" output="screen" />
 
      <!-- Launch lab3 listener -->
     <node name="lab3_listener" pkg="lab3" type="lab3_listener.py" />
-
-     <!-- Launch lab2 -->
-    <node name="lab2" pkg="lab2" type="lab2.py" />
-
-    
-
 
 </launch>

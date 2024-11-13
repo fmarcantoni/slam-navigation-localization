@@ -27,11 +27,14 @@ class Lab3_Listener:
 
     def activate_service(self, msg: PoseStamped):
         """
-        Activates the plan_path service
+        Activates the plan_path serviceactivate_service)
+
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The goal pose information.
         """
         plan_path = rospy.ServiceProxy('plan_path', GetPlan)
+
+        print("hello! service should be active")
         
         start = PoseStamped()
         start.pose.position.x = self.px
@@ -58,6 +61,7 @@ class Lab3_Listener:
         self.pth = yaw
 
     def run(self):
+
         rospy.spin()
 
 

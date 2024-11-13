@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 from priority_queue import PriorityQueue
 
@@ -32,14 +33,20 @@ class PathPlanner:
         ## Choose a the topic names, the message type is GridCells
         self.expanded_cells = rospy.Publisher("path_planner/expanded_cells", GridCells, queue_size=10)
         self.frontier = rospy.Publisher("path_planner/frontier", GridCells, queue_size=10)
-        self.heuristic = rospy.Publisher("path_planner/heuristic", GridCells, queue_size=10)# future
+        self.heuristic = rospy.Publisher("path_planner/heuristic", GridCells, queue_size=10)
         self.path_viz = rospy.Publisher("path_planner/viz", GridCells, queue_size=10)
         self.actual_path_viz = rospy.Publisher("path_planner/actual_path_viz", Path, queue_size=10)
+
+
         ## Initialize the request counter
         request_counter = 0
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
+
+
+
+        
 
 
 
@@ -159,11 +166,18 @@ class PathPlanner:
         ### REQUIRED CREDIT
         # get index of grid coordinate in list
         index = PathPlanner.grid_to_index(mapdata, p)
+        width = mapdata.info.width
+        height = mapdata.info.height
 
         # checks if grid is witihn boundaries of grid && free
-        if mapdata.data[index] == 0:
-            return True
-        return False
+        if not ((0 <= p[0] < width) and (0 <= p[1] < height)): 
+            return False
+        
+        else:
+            if mapdata.data[index] == 0:
+                return True
+            else:
+                return False
 
 
 
@@ -218,14 +232,14 @@ class PathPlanner:
             can_walk.append((x_coordinate + 1, y_coordinate))
         if PathPlanner.is_cell_walkable(mapdata, (x_coordinate, y_coordinate - 1)): # S
             can_walk.append((x_coordinate, y_coordinate - 1))
-        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate + 1)): # W
+        if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate )): # W
             can_walk.append((x_coordinate - 1, y_coordinate))
         if PathPlanner.is_cell_walkable(mapdata, (x_coordinate + 1, y_coordinate + 1)): # NE
             can_walk.append((x_coordinate + 1, y_coordinate + 1))
         if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate + 1)): # NW
             can_walk.append((x_coordinate - 1, y_coordinate + 1))
         if PathPlanner.is_cell_walkable(mapdata, (x_coordinate + 1, y_coordinate - 1)): # SE
-            can_walk.append((x_coordinate, y_coordinate - 1))
+            can_walk.append((x_coordinate + 1, y_coordinate - 1))
         if PathPlanner.is_cell_walkable(mapdata, (x_coordinate - 1, y_coordinate - 1)): # SW
             can_walk.append((x_coordinate - 1, y_coordinate - 1))
 
@@ -270,11 +284,11 @@ class PathPlanner:
 
         # loop through cells
         for w in range(width):
-            for h in range(height):
+            for h in range(height):    
                 if mapdata.data[PathPlanner.grid_to_index(mapdata, [w,h])] == 100: # check if there is an obstacle
                     # if so, goes through nearby cells and changes them to blocked
                     for i in range (max(0, w - padding), min (width, w + padding + 1)):
-                        for j in range(max(0, h - padding), min(height, h + padding + 1))
+                        for j in range(max(0, h - padding), min(height, h + padding + 1)):
                         # only changes unblocked cells and adds them to a list of edited cells
                             if mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j])] != 100:
                                 grid[PathPlanner.grid_to_index(mapdata, (i, j))] = 100
@@ -286,7 +300,7 @@ class PathPlanner:
         grid_cells.header.frame_id = "/map"
         grid_cells.cell_width = mapdata.info.resolution
         grid_cells.cell_height = mapdata.info.resolution
-        grid_cells = edited_cells
+        grid_cells.cells = edited_cells
         self.c_space.publish(grid_cells)
 
         ## Return the C-space
@@ -324,7 +338,7 @@ class PathPlanner:
                 new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next)
                 if next not in cost_so_far or new_cost < cost_so_far[next]:
                     cost_so_far[next] = new_cost
-                    priority = new_cost + PathPlanner.euclidean_distance(next, truncated_goal)
+                    priority = new_cost + PathPlanner.euclidean_distance(goal, next)
                     frontier.put(next, priority)
                     came_from[next] = current
 
@@ -338,10 +352,13 @@ class PathPlanner:
         # gets path from dictionary
         path = []
         current = truncated_goal
-        i = 0
+        print("came from:")
+        print(came_from)
         while current != truncated_start:
             path.append(current)
-            current = came_from[current]
+            current = came_from.get(current)
+            print("current")
+            print(current)
         
         path.reverse()
 
@@ -371,7 +388,7 @@ class PathPlanner:
         new_path.append(path[0])
         for i in range (1, len(path) - 1): 
             previous = path[i-1]
-            current = path
+            current = path[i]
             next = path[i+1]
             dx1 = current[0] - previous[0]
             dy1 = current[1] - previous[1]
@@ -385,7 +402,15 @@ class PathPlanner:
 
         return new_path
 
+    # @staticmethod
+    # def shorten_path(path: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    #     new_path_length = len(path)
+    #     shorter_path = []
 
+    #     for i in range(int(new_path_length/2)):
+    #         shorter_path.append(path[i])
+
+    #     return shorter_path
         
 
     def path_to_message(self, mapdata: OccupancyGrid, path: list[tuple[int, int]]) -> Path:
@@ -434,6 +459,9 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
+        map = self.request_map()
+        self.calc_cspace(map, 2)
+        
         rospy.spin()
 
 
