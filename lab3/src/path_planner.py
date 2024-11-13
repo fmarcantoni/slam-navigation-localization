@@ -57,7 +57,10 @@ class PathPlanner:
         ### REQUIRED CREDIT
         width = mapdata.info.width
         height = mapdata.info.height
-        index = width*height - width*p[1] - (width - p[0]) #this is for 0,0 being in the bottom left, and counting coordinates like normal
+        index = (width*height) - (width*p[1]) - (width - p[0]) #this is for 0,0 being in the bottom left, and counting coordinates like normal
+        # print("p[0] : %i" % p[0])
+        # print("p[1] : %i" % p[1])
+
         return index
 
 
@@ -89,8 +92,8 @@ class PathPlanner:
         originPose = mapdata.info.origin
         wp = Point()
         
-        wp.x = p[0]*res + originPose.position.x
-        wp.y = p[1]*res + originPose.position.y
+        wp.x = p[0]*res + originPose.position.x + res/2
+        wp.y = p[1]*res + originPose.position.y + res/2 + (mapdata.info.height - 1)*res
         wp.z = 0 + originPose.position.z
 
         return wp
@@ -164,18 +167,21 @@ class PathPlanner:
         :return        [bool]          True if the cell is walkable, False otherwise
         """
         ### REQUIRED CREDIT
-        wakable = True
+        
+        width = mapdata.info.width
+        height = mapdata.info.height
+
+        notWithin = ((p[0] >= width) or (p[0] < 0)) or ((p[1] >= height) or p[1] < 0)        # not within if coords outside width and height and axis (0)
+        if notWithin:
+            return False
+        
         index = PathPlanner.grid_to_index(mapdata, p)
         cellValue = mapdata.data[index]
 
-        width = mapdata.info.width
-        height = mapdata.info.height
-        notWithin = ((p[0] >= width) and  (p[0] < 0)) or ((p[1] >= height) and p[1] < 0)        # not within if coords outside width and height and axis (0)
-
         if (cellValue == -1 or cellValue > 50 or notWithin):         # if unexplored, probably occupied, or outside of boundaries
-            wakable = False                                                                     # cell is not wakable
+            return  False                                                                     # cell is not wakable
 
-        return wakable
+        return True
 
                
 
@@ -330,37 +336,51 @@ class PathPlanner:
 
         width = mapdata.info.width
         height = mapdata.info.height
-        
+        res = mapdata.info.resolution
+
         padCells = []
-        
+        newMapData = []
+
         gridCellsMessage = GridCells()
+        gridCellsMessage.header.frame_id = "/map"
         gridCellsMessage.cell_height = mapdata.info.resolution
         gridCellsMessage.cell_width = mapdata.info.resolution
-    
+        
 
+        newmap = OccupancyGrid()
+        newmap.header = mapdata.header
+        newmap.info = mapdata.info
 
         # run through all the rows, and change the values next to the unwakable cells to also be unwakable
         for j in range(height):                                                             # iterate throgh all the rows
             for i in range(width):                                                          # in each row, iterate through
                 index = PathPlanner.grid_to_index(mapdata, [i, j])
+                newMapData.append(mapdata.data[index])
                 if (mapdata.data[index] > 50):  #PathPlanner.thersholdoccumpancy
                     neighbors = PathPlanner.neighbors_radius(mapdata, [i, j], padding)
                     padCells.append(neighbors)
                 pass
-                
+
+        print("Done calculating cells to pad")
+
         # run through all the cells that need to be changed
-        for cell in padCells:
-            index = PathPlanner.grid_to_index(mapdata, cell)
-            mapdata.data[index] = 100
+        for neighbors in padCells:
+            for cell in neighbors:
+                index = PathPlanner.grid_to_index(mapdata, cell)
 
-            # add new padded cells to the message
-            newCell = Point(cell[0], cell[1], 0)
-            gridCellsMessage.cells.append(newCell)
+                cell[1] = -cell[1]
+                newCell = PathPlanner.grid_to_world(mapdata, cell)
+                
+                newMapData[index] = 100
 
+                # add new padded cells to the message
+                gridCellsMessage.cells.append(newCell)
         
+        print("Publishing gridCellsMessage on expandedCellsPub")
+        # print(gridCellsMessage)
         self.expandedCellsPub.publish(gridCellsMessage)
 
-
+        newmap.data = newMapData
         return mapdata
 
 
@@ -424,6 +444,11 @@ class PathPlanner:
         """
         map = self.request_map()
         self.calc_cspace(map, 1)
+        # print(self.grid_to_index(map, [36,0]))
+
+        #should be 50
+        print(self.grid_to_index(map, [12, 35]))
+
         rospy.spin()
 
 
