@@ -39,7 +39,7 @@ class PathPlanner:
 
         ## Initialize the request counter
         request_counter = 0
-        thresholdOccupied = 50
+        self.thresholdOccupied = 50
 
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
@@ -57,8 +57,7 @@ class PathPlanner:
         ### REQUIRED CREDIT
         width = mapdata.info.width
         height = mapdata.info.height
-        # index = mapdata(width*(p[1] - 1) + (p[0] - 1)) #this is for 0, 0 on the top right
-        index = mapdata(width*height - width*p[1] - (width - p[0])) #this is for 0,0 being in the bottom left, and counting coordinates like normal
+        index = width*height - width*p[1] - (width - p[0]) #this is for 0,0 being in the bottom left, and counting coordinates like normal
         return index
 
 
@@ -86,8 +85,8 @@ class PathPlanner:
         :return        [Point]         The position in the world.
         """
         ### REQUIRED CREDIT
-        res = OccupancyGrid.info.resolution     #meters/cell
-        originPose = OccupancyGrid.info.origin
+        res = mapdata.info.resolution     #meters/cell
+        originPose = mapdata.info.origin
         wp = Point()
         
         wp.x = p[0]*res + originPose.position.x
@@ -171,9 +170,9 @@ class PathPlanner:
 
         width = mapdata.info.width
         height = mapdata.info.height
-        notWithin = (p[0] > (width - 1) or p[1] > (height - 1))                                 # not within if coords outside width and height
+        notWithin = ((p[0] >= width) and  (p[0] < 0)) or ((p[1] >= height) and p[1] < 0)        # not within if coords outside width and height and axis (0)
 
-        if (cellValue == -1 or cellValue > PathPlanner.thresholdOccupied or notWithin):         # if unexplored, probably occupied, or outside of boundaries
+        if (cellValue == -1 or cellValue > 50 or notWithin):         # if unexplored, probably occupied, or outside of boundaries
             wakable = False                                                                     # cell is not wakable
 
         return wakable
@@ -189,7 +188,35 @@ class PathPlanner:
         :return        [[(int,int)]]   A list of walkable 4-neighbors.
         """
         ### REQUIRED CREDIT
-        pass
+        #check if the cell is on the edge
+        neighborsFour = []
+
+        # cellInQuestion = [p[0] - 1, p[1]]
+        # if (cellInQuestion[0] >= 0) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #     neighborsFour.append(cellInQuestion)
+
+        # cellInQuestion[0] += 2
+        # if (cellInQuestion[0] < width) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #     neighborsFour.append(cellInQuestion)
+
+        # cellInQuestion[0] -= 1
+        # cellInQuestion[1] -= 1
+        # if (cellInQuestion[1] >= 0) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #     neighborsFour.append(cellInQuestion)
+
+        # cellInQuestion[1] += 2
+        # if (cellInQuestion[0] < height) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #     neighborsFour.append(cellInQuestion)
+
+        for i in range(-1, 2, 2):
+            cellInQuestion = [p[0] + i, p[1]]
+            if PathPlanner.is_cell_walkable(mapdata, cellInQuestion):
+                    neighborsFour.append(cellInQuestion)
+            cellInQuestion = [p[0], p[1] + i]
+            if PathPlanner.is_cell_walkable(mapdata, cellInQuestion):
+                    neighborsFour.append(cellInQuestion)
+
+        return neighborsFour
 
     
     
@@ -201,10 +228,60 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [[(int,int)]]   A list of walkable 8-neighbors.
         """
-        ### REQUIRED CREDIT
-        pass
 
+
+        # use neighbors helper function, the method is helpful for cspace
+        return PathPlanner.neighbors_radius(mapdata, p, 1)
     
+        ### REQUIRED CREDIT
+        # neighborsEight = PathPlanner.neighbors_of_4(mapdata, p)
+        # neighborsEight = []
+
+        # cellInQuestion = [p[0] - 1, p[1] - 1]
+
+        # # if bottom left corner's coordinates are 0 or more  (in bounds)
+        # # and it is wakable, then it is good
+        # if (cellInQuestion[0] >= 0) and (cellInQuestion[1] >= 0) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #     neighborsEight.append(cellInQuestion)
+        #     #shift the cell in question two to the right (now it is bottom right corner)
+        #     cellInQuestion[0] += 2
+        #     # we had already checked that the y was good, so only need to check the x boundary
+        #     if (cellInQuestion[0] < width) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #             neighborsEight.append(cellInQuestion)
+
+        # # go up two cells and two to the left(top left)
+        # cellInQuestion[0] -= 2
+        # cellInQuestion[1] += 2
+        # if (cellInQuestion[0] >= 0) and (cellInQuestion[1] < height) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #     neighborsEight.append(cellInQuestion)
+        #     #shift the cell in question two to the right (now it is top right corner)
+        #     cellInQuestion[0] += 2
+        #     # we had already checked that the y was good, so only need to check the x boundary
+        #     if (cellInQuestion[0] < width) and (PathPlanner.is_cell_walkable(mapdata, cellInQuestion)):
+        #             neighborsEight.append(cellInQuestion)
+        
+        
+
+    @staticmethod
+    def neighbors_radius(mapdata: OccupancyGrid, p: Tuple[int, int], r: int) -> List[Tuple[int, int]]:
+        """
+        Returns the walkable padding cells of (x,y) in the occupancy grid within radius.
+        :param mapdata [OccupancyGrid] The map information.
+        :param p       [(int, int)]    The coordinate in the grid.
+        :param r       [int]           The radius of padding, the number of cells to pad
+        :return        [[(int,int)]]   A list of walkable 8-neighbors.
+        """
+        neighbors = []
+        for i in range (-r, r + 1):
+            for j in range (-r, r + 1):
+                cellInQuestion = [p[0] + i, p[1] + j]
+                if PathPlanner.is_cell_walkable(mapdata, cellInQuestion):
+                    # do not add the original cell
+                    if not (cellInQuestion == [p[0], p[1]]):
+                        neighbors.append(cellInQuestion)
+
+        return neighbors
+
     
     @staticmethod
     def request_map() -> OccupancyGrid:
@@ -253,31 +330,36 @@ class PathPlanner:
 
         width = mapdata.info.width
         height = mapdata.info.height
+        
+        padCells = []
+        
+        gridCellsMessage = GridCells()
+        gridCellsMessage.cell_height = mapdata.info.resolution
+        gridCellsMessage.cell_width = mapdata.info.resolution
+    
+
 
         # run through all the rows, and change the values next to the unwakable cells to also be unwakable
         for j in range(height):                                                             # iterate throgh all the rows
             for i in range(width):                                                          # in each row, iterate through
-                if not PathPlanner.is_cell_wakable(mapdata, [i, j]) and (width !=1):        # make sure that the row is not only one block long
-                    
-                    for x in range(padding + 1):
-                        if i == 0:
-                            mapdata.dat[PathPlanner.grid_to_index(mapdata, [i + x, j])] = 100
-                        elif i == (width - 1):
-                            mapdata.data[PathPlanner.grid_to_index(mapdata, [i - x, j])] = 100
-                        else:
-                            mapdata.data[PathPlanner.grid_to_index(mapdata, [i + x, j])] = 100
-                            mapdata.data[PathPlanner.grid_to_index(mapdata, [i - x, j])] = 100
+                index = PathPlanner.grid_to_index(mapdata, [i, j])
+                if (mapdata.data[index] > 50):  #PathPlanner.thersholdoccumpancy
+                    neighbors = PathPlanner.neighbors_radius(mapdata, [i, j], padding)
+                    padCells.append(neighbors)
+                pass
+                
+        # run through all the cells that need to be changed
+        for cell in padCells:
+            index = PathPlanner.grid_to_index(mapdata, cell)
+            mapdata.data[index] = 100
 
-        for i in range(width):
-            for j in range(height):
-                if not PathPlanner.is_cell_wakable(mapdata, [i, j]) and (height !=1):        # make sure that the row is not only one block long
-                    if j == 0:
-                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j + 1])] = 100
-                    elif j == (height - 1):
-                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j - 1])] = 100
-                    else:
-                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j + 1])] = 100
-                        mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j - 1])] = 100
+            # add new padded cells to the message
+            newCell = Point(cell[0], cell[1], 0)
+            gridCellsMessage.cells.append(newCell)
+
+        
+        self.expandedCellsPub.publish(gridCellsMessage)
+
 
         return mapdata
 
@@ -340,7 +422,8 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
-        PathPlanner.request_map()
+        map = self.request_map()
+        self.calc_cspace(map, 1)
         rospy.spin()
 
 
