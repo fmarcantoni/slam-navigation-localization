@@ -3,6 +3,7 @@
 from __future__ import annotations
 import math
 import rospy
+import copy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
@@ -44,7 +45,9 @@ class PathPlanner:
 		:param p [(int, int)] The cell coordinate.
 		:return  [int] The index.
 		"""
-		index = p[1]*mapdata.info.width + p[0]
+		x = p[0]
+		y = p[1]
+		index = y*mapdata.info.width + x
 		return index
 
 
@@ -95,8 +98,8 @@ class PathPlanner:
 		origin_y = mapdata.info.origin.position.y
 		map_resolution = mapdata.info.resolution
 
-		cell_x = ((wp.x - origin_x)/map_resolution) - 0.5
-		cell_y = ((wp.y - origin_y)/map_resolution) - 0.5
+		cell_x = int(((wp.x - origin_x)/map_resolution) - 0.5)
+		cell_y = int(((wp.y - origin_y)/map_resolution) - 0.5)
 
 		return [cell_x, cell_y]
 
@@ -125,6 +128,7 @@ class PathPlanner:
 			pose.pose.position.x = world_point.x
 			pose.pose.position.y = world_point.y
 			pose.pose.position.z = world_point.z
+			pose.pose.orientation = Quaternion(0, 0, 0, 1)
 			#pose.pose.orientation.w = 1.0
 			poses.append(pose)
 
@@ -146,10 +150,10 @@ class PathPlanner:
 		width = mapdata.info.width
 		height = mapdata.info.height
 	
-		if not ((p[0] >= 0 and p[0] <= width) and (p[1] >= 0 and p[1] <= height)):
+		if not ((0 <= p[0] < width) and (0 <= p[1] < height)):
 			return False
 		else:
-			if mapdata.info[index] == 100:
+			if mapdata.data[index] == 100:
 				return False
 			else:
 				return True  
@@ -170,11 +174,11 @@ class PathPlanner:
 
 		if PathPlaner.is_cell_walkable(mapdata, [cell_x + 1, cell_y]):
 			walkable_neighbours.append([cell_x + 1, cell_y])
-		elif PathPlnner.is_cell_walkable(mapdata, [cell_x - 1, cell_y]):
+		if PathPlnner.is_cell_walkable(mapdata, [cell_x - 1, cell_y]):
 			walkable_neighbours.append([cell_x - 1, cell_y])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y + 1]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y + 1]):
 			walkable_neighbours.append([cell_x, cell_y + 1])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y - 1]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y - 1]):
 			walkable_neighbours.append([cell_x, cell_y - 1])
 
 		return walkable_neighbours
@@ -195,19 +199,19 @@ class PathPlanner:
 		
 		if PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y - 1]):
 			walkable_neighbours.append([cell_x - 1, cell_y - 1])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y]):
 			walkable_neighbours.append([cell_x - 1, cell_y])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y + 1]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x - 1, cell_y + 1]):
 			walkable_neighbours.append([cell_x - 1, cell_y + 1])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y - 1]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y - 1]):
 			walkable_neighbours.append([cell_x, cell_y - 1])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y + 1]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x, cell_y + 1]):
 			walkable_neighbours.append([cell_x, cell_y + 1])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y - 1]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y - 1]):
 			walkable_neighbours.append([cell_x + 1, cell_y - 1])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y]):
 			walkable_neighbours.append([cell_x + 1, cell_y])
-		elif PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y + 1]):
+		if PathPlanner.is_cell_walkable(mapdata, [cell_x + 1, cell_y + 1]):
 			walkable_neighbours.append([cell_x + 1, cell_y + 1])
 
 		return walkable_neighbours
@@ -223,10 +227,10 @@ class PathPlanner:
 		"""
 		### REQUIRED CREDIT
 		rospy.loginfo("Requesting the map")
-		rospy.wait_for_service('nav_msgs/OccupancyGrid')
+		rospy.wait_for_service('static_map')
 		try:
             #map_request = rospy.ServiceProxy('static_map', GetMap)
-			map_request = rospy.ServiceProxy('nav_msgs/OccupancyGrid', GetMap)
+			map_request = rospy.ServiceProxy('static_map', GetMap)
 			return map_request().map
 
 		except rospy.ServiceException as e:
@@ -246,24 +250,63 @@ class PathPlanner:
 		rospy.loginfo("Calculating C-Space")
 		## Go through each cell in the occupancy grid
 		## Inflate the obstacles where necessary
-		inflated_cells = []
+		# inflated_cells = []
+		obstacles = []
 		width = mapdata.info.width
 		height = mapdata.info.height
 		cspace_data = list(copy.deepcopy(mapdata.data))
+
+		for cell in range(len(cspace_data)):
+			if mapdata.data[cell] == 100:
+				x = cell % width
+				y = int(cell / width)
+				obstacles.append((x,y))
+
+		for i in range(padding):
+			inflated_cells = []
+			for obstacle in obstacles:
+				neighbors = PathPlanner.neighbors_of_8(mapdata, obstacle)
+				for neighbor in neighbors:
+					n_index = PathPlanner.grid_to_index(mapdata, neighbor)
+					if mapdata.data[n_index] == 0:
+						cspace_data[n_index] = 100
+						#world_point = PathPlanner.grid_to_world(mapdata, [x, y])
+						inflated_cells.append(neighbor)
+
+			for h in inflated_cells:
+				if obstacles.count(h) == 0:
+					obstacles.append(h)
+
+		for occupied in obstacles:
+			cspace_data[PathPlanner.grid_to_index(mapdata, occupied)] == 100
+
+		gridCells = [] 
+
+		for obs in obstacles:
+			gridCells.append(PathPlanner.grid_to_world(mapdata, obs))
+
+
 		
-		for h in range(height):
-			for w in range(width):
-				index = PathPlanner.grid_to_index(mapdata, [w, h])
-				if cspace_data[index] == 100:
-					for dy in range(-padding, padding + 1):
-						for dx in range(-padding, padding + 1):
-							nx, ny = x + dx, y + dy
-							if 0 <= nx < width or 0 <= ny < height:
-								n_index = PathPlanner.grid_to_index(mapdata, [nx, ny])
-								if cspace_data[n_index] == 0:
-									cspace_data[n_index] = 100
-									world_point = PathPlanner.grid_to_world(mapdata, [nx, ny])
-									inflated_cells.append(world_point)
+		# for j in range(len(cspace_data)):
+		# 	x = j % width
+		# 	y = int(j / width)
+		# 	obstacles.append((x,y))
+		# 	#index = PathPlanner.grid_to_index(mapdata, [x, y])
+		# 	if cspace_data[index] == 100: #if we have for sure an obstacle
+		# 		w_point = PathPlanner.grid_to_world(mapdata, [x, y])
+		# 		inflated_cells.append(w_point)
+		# 		neighbors = PathPlanner.neighbors_of_8(mapdata, [x, y])
+		# 		for i in range(padding):
+		# 			for neighbor in neighbors:
+		# 				n_index = PathPlanner.grid_to_index(mapdata, neighbor)
+		# 				if cspace_data[n_index] == 0:
+		# 					cspace_data[n_index] = 100
+		# 					world_point = PathPlanner.grid_to_world(mapdata, [x, y])
+		# 					inflated_cells.append(world_point)
+		# 				else:
+		# 					world_point = PathPlanner.grid_to_world(mapdata, [x, y])
+		# 					inflated_cells.append(world_point)
+
 		
 		## Create a GridCells message and publish it
 		msg = GridCells()
@@ -271,7 +314,7 @@ class PathPlanner:
 		msg.header = mapdata.header
 		msg.cell_width = mapdata.info.resolution
 		msg.cell_height = mapdata.info.resolution
-		msg.cells = inflated_cells
+		msg.cells = gridCells
 
 		self.cspace.publish(msg)
 	
@@ -279,7 +322,7 @@ class PathPlanner:
 		cspace_map = OccupancyGrid()
 		cspace_map.header = mapdata.header
 		cspace_map.info = mapdata.info
-		cspace_map.data = cspace_data
+		cspace_map.data = mapdata.data
 
 		return cspace_map
 
