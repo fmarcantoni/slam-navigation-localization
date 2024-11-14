@@ -26,7 +26,7 @@ class Lab2:
         ### When a message is received, call self.go_to
         #rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
-        rospy.Subscriber("/path_planner/actual_path", Path, self.go_to_destination)
+        rospy.Subscriber("/path_planner/actual_path_viz", Path, self.go_to_destination)
 
         #init attributes
         self.px = 0
@@ -172,23 +172,23 @@ class Lab2:
 
         if target_heading > current_heading:
             if final_angle < math.pi:
-                rotate_speed = 1
+                rotate_speed = 0.5
             else:
-                rotate_speed = -1
+                rotate_speed = -0.5
         elif target_heading < current_heading:
             if final_angle < -1*math.pi:
-                rotate_speed = 1
+                rotate_speed = 0.5
             else: 
-                rotate_speed = -1
+                rotate_speed = -0.5
 
         self.rotate(final_angle, rotate_speed)
 
     def go_to_destination(self, msg: Path):
+        print("hello")
         list_of_locations = []
         list_of_locations = msg.poses
-        print(list_of_locations)
 
-        # runs through this list
+        # runs through this list of location and for every location (PoseStamped), call go_to on it
         for location in list_of_locations:
             self.go_to(location)
 
@@ -249,7 +249,6 @@ class Lab2:
 
 
     def run(self):
-        self.send_speed(0.0, 0.0)
         rospy.spin()
 
 if __name__ == '__main__':
