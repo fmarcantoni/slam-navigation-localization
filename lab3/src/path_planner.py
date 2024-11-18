@@ -248,73 +248,31 @@ class PathPlanner:
 		"""
 		### REQUIRED CREDIT
 		rospy.loginfo("Calculating C-Space")
-		## Go through each cell in the occupancy grid
-		## Inflate the obstacles where necessary
-		# inflated_cells = []
-		obstacles = []
+
+		padded_cells = []
 		width = mapdata.info.width
 		height = mapdata.info.height
 		cspace_data = list(copy.deepcopy(mapdata.data))
 
-		for cell in range(len(cspace_data)):
-			if mapdata.data[cell] == 100:
-				x = cell % width
-				y = int(cell / width)
-				obstacles.append((x,y))
-
-		for i in range(padding):
-			inflated_cells = []
-			for obstacle in obstacles:
-				neighbors = PathPlanner.neighbors_of_8(mapdata, obstacle)
-				for neighbor in neighbors:
-					n_index = PathPlanner.grid_to_index(mapdata, neighbor)
-					if mapdata.data[n_index] == 0:
-						cspace_data[n_index] = 100
-						#world_point = PathPlanner.grid_to_world(mapdata, [x, y])
-						inflated_cells.append(neighbor)
-
-			for h in inflated_cells:
-				if obstacles.count(h) == 0:
-					obstacles.append(h)
-
-		for occupied in obstacles:
-			cspace_data[PathPlanner.grid_to_index(mapdata, occupied)] == 100
-
-		gridCells = [] 
-
-		for obs in obstacles:
-			gridCells.append(PathPlanner.grid_to_world(mapdata, obs))
-
-
-		
-		# for j in range(len(cspace_data)):
-		# 	x = j % width
-		# 	y = int(j / width)
-		# 	obstacles.append((x,y))
-		# 	#index = PathPlanner.grid_to_index(mapdata, [x, y])
-		# 	if cspace_data[index] == 100: #if we have for sure an obstacle
-		# 		w_point = PathPlanner.grid_to_world(mapdata, [x, y])
-		# 		inflated_cells.append(w_point)
-		# 		neighbors = PathPlanner.neighbors_of_8(mapdata, [x, y])
-		# 		for i in range(padding):
-		# 			for neighbor in neighbors:
-		# 				n_index = PathPlanner.grid_to_index(mapdata, neighbor)
-		# 				if cspace_data[n_index] == 0:
-		# 					cspace_data[n_index] = 100
-		# 					world_point = PathPlanner.grid_to_world(mapdata, [x, y])
-		# 					inflated_cells.append(world_point)
-		# 				else:
-		# 					world_point = PathPlanner.grid_to_world(mapdata, [x, y])
-		# 					inflated_cells.append(world_point)
+		for w in range(width):
+			for h in range(height):
+				index = PathPlanner.grid_to_index(mapdata, [w, h])
+				if mapdata.data[index] == 100:
+					for x in range(max(0, w - padding), min(width, w + padding + 1)):
+						for y in range(max(0, h - padding), min(height, h + padding + 1)):
+							neighbor_index = PathPlanner.grid_to_index(mapdata, [x, y])
+							if mapdata.data[neighbor_index] == 0:
+								cspace_data[neighbor_index] = 100
+								world_point = PathPlanner.grid_to_world(mapdata, [x,y])
+								padded_cells.append(world_point)
 
 		
 		## Create a GridCells message and publish it
 		msg = GridCells()
-		#msg.header.frame_id = "/map"
 		msg.header = mapdata.header
 		msg.cell_width = mapdata.info.resolution
 		msg.cell_height = mapdata.info.resolution
-		msg.cells = gridCells
+		msg.cells = padded_cells
 
 		self.cspace.publish(msg)
 	
@@ -386,7 +344,7 @@ class PathPlanner:
 		Runs the node until Ctrl-C is pressed.
 		"""
 		my_map = PathPlanner.request_map()
-		self.calc_cspace(my_map, 1)
+		self.calc_cspace(my_map, 2)
 		rospy.spin()
 
 
