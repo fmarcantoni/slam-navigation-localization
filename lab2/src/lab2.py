@@ -60,7 +60,6 @@ class Lab2:
         r = rospy.Rate(10) # 10hz
         r.sleep()
 
-    
         
     def drive(self, distance: float, linear_speed: float):
         """
@@ -91,7 +90,6 @@ class Lab2:
         self.send_speed(0.0, 0.0)
 
 
-
     def rotate(self, angle: float, aspeed: float):
         """
         Rotates the robot around the body center by the given angle.
@@ -114,6 +112,7 @@ class Lab2:
         elif target_heading < 0:
             while target_heading < 0:
                 target_heading = target_heading + 2*math.pi
+
 
         current_heading = 0
 
@@ -183,16 +182,113 @@ class Lab2:
 
         self.rotate(final_angle, rotate_speed)
 
+    def go_to_pure(self, msg: PoseStamped):
+         # stores the initial pose
+        #self.send_speed(1.0, 0.0)
+        current_x = self.px
+        current_y = self.py
+        current_heading = self.pth
+
+        # extract final pose of the robot
+        target_x = msg.pose.position.x
+        target_y = msg.pose.position.y
+        (roll, pitch, yaw) = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
+        target_heading = yaw
+
+        kp_linear = 0.1
+        kp_turn = 0.1
+        print("target_x - current_x")
+        print( target_x - current_x )
+
+        print("target_y - current_y")
+        print( target_y - current_y )
+
+        print("arget_heading - current_heading")
+        print(target_heading - current_heading)
+
+        #while (abs(target_x - current_x) >= 0.02) and (abs(target_y - current_y) >= 0.02) and (abs(target_heading - current_heading) >= 0.02):
+        while True:
+             
+            current_x = self.px
+            current_y = self.py
+            current_heading = self.pth
+
+            linear_error = math.sqrt((target_x - current_x)**2 + (target_y - current_y)**2)
+            absTargetAngle = math.atan2(target_y - current_y, target_x - current_x)
+            absPoseAngle = target_heading - current_heading
+
+            # if absTargetAngle < -1*math.pi:
+            #     absTargetAngle += 2 * math.pi
+            # elif absTargetAngle > math.pi:
+            #     absTargetAngle -= 2 * math.pi
+
+            # if absPoseAngle < -1*math.pi:
+            #     absPoseAngle += 2 * math.pi
+            # elif absPoseAngle > math.pi:
+            #     absPoseAngle -= 2 * math.pi
+
+
+            if absTargetAngle < 0:
+                absTargetAngle += 2 * math.pi
+            if absPoseAngle < 0:
+                absPoseAngle += 2 * math.pi
+
+            # absTargetAngle %= (2 * math.pi)
+            # absPoseAngle %= (2 * math.pi)
+
+            
+
+            alpha = min(1, linear_error)
+
+            angular_error = alpha * absTargetAngle + (1-alpha) * absPoseAngle
+
+            print("linear and turn errors: ")
+            print(linear_error)
+            print(" ")
+            print(angular_error)
+
+            #linearVel = min(linear_error*kp_linear, 10)
+            linearVel = linear_error*kp_linear
+            angularVel = angular_error*kp_turn
+
+            print("Linear velocity: ")
+            print(linearVel)
+
+            print("angular velocity: ")
+            print(angularVel)
+
+            self.send_speed(linearVel, angularVel)
+
+            if (abs(target_x - current_x) <= 0.02) and (abs(target_y - current_y) <= 0.02) and (abs(target_heading - current_heading) <= 0.02):
+                break
+
+
+
+        """
+        //compute linear error
+        linearVel = sqrt(pow(tergety - currenty, 2) + pow(tergetx - currentx, 2))
+
+        //compute turn error
+        absTargetAngle = atan2(targety - currenty, targetx - currentx)
+        if absTargetAngle < 0 : absTargetAngle += 360
+        turnError = find_min_angle(absTargetAngle, currentHeading)
+
+        //compute linear and turn velocities using controller of your choice
+
+        //send command to motors
+        """
+
     def go_to_destination(self, msg: Path):
         print("hello")
         list_of_locations = []
         list_of_locations = msg.poses
+        self.send_speed(0.0, 0.0)
 
         # runs through this list of location and for every location (PoseStamped), call go_to on it
         for location in list_of_locations:
-            self.go_to(location)
-
-
+            print("we are going to the next pose")
+            #self.go_to(location)
+            self.go_to_pure(location)
 
     def update_odometry(self, msg: Odometry):
         """
@@ -210,8 +306,6 @@ class Lab2:
 
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = yaw
-
-
 
     def smooth_drive(self, distance: float, linear_speed: float):
         """
