@@ -28,7 +28,7 @@ class PathPlanner:
 		self.cspace = rospy.Publisher('path_planner/cspace', GridCells, queue_size=10)
 		## Create publishers for A* (expanded cells, frontier, ...)
 		## Choose a the topic names, the message type is GridCells
-		self.expanded_cells = rospy.Publisher('path_planner/expanded_cells',GridCells, queue_size=10)
+		self.expanded_cells = rospy.Publisher('path_planner/expanded_cells', GridCells, queue_size=10)
 		self.frontier = rospy.Publisher('path_planner/frontier', GridCells, queue_size=10)
 		self.heuristic = rospy.Publisher('path_planner/heuristic', GridCells, queue_size=10)
 		## Initialize the request counter
@@ -253,7 +253,7 @@ class PathPlanner:
 		padded_cells = []
 		width = mapdata.info.width
 		height = mapdata.info.height
-		cspace_data = list(copy.deepcopy(mapdata.data))
+		cspace = list(copy.deepcopy(mapdata.data))
 
 		for w in range(width):
 			for h in range(height):
@@ -263,7 +263,7 @@ class PathPlanner:
 						for y in range(max(0, h - padding), min(height, h + padding + 1)):
 							neighbor_index = PathPlanner.grid_to_index(mapdata, [x, y])
 							if mapdata.data[neighbor_index] == 0:
-								cspace_data[neighbor_index] = 100
+								cspace[neighbor_index] = 100
 								world_point = PathPlanner.grid_to_world(mapdata, [x,y])
 								padded_cells.append(world_point)
 
@@ -288,46 +288,10 @@ class PathPlanner:
 
 	
 	def a_star(self, mapdata: OccupancyGrid, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
+		### REQUIRED CREDIT
 		rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
-		actual_start = (int(start[0]), int(start[1]))
-		actual_goal = (int(goal[0]), int(goal[1]))
-		frontier = PriorityQueue()
-		frontier.put(actual_start, 0)
-		cost_dict = {}
-		path_dict = {}
-		visited = {}
-		path_dict[actual_start] = None
-		cost_dict[actual_start] = 0
-
-		while frontier:
-			current = frontier.get()
-			if current == actual_goal:
-				break
-			
-			neighbors = PathPlanner.neighbors_of_8(mapdata, current)
-
-			
-			(priority, node) = heapq.heappop(frontier)
-			visited.pdate(node)
-
-			if node == goal:
-				break
-			else:
-				unvisited_neighbors = set(mapdata[node].keys()) - visited
-				for neighbor in unvisited_neighbors:
-
-					cost_to_node = cost_dict[node] + mapdata[node][neighbor]
-
-					if (neighbor not in cost_dict) or (cost_to_node < cost_dict[neighbor]):
-						cost_dict[neighbor] = cost_to_node
-						path_dict[neighbor] = path_dict[node] + [neighbor]
-
-						heuristic = len(path_dict[node]) + 1
-						estimated_cost = 1*cost_to_node + 1*heuristic
-						heapq.heappush(frontier, (estimated_cost, neighbor))
-
-	return path_dict[target]
+		
 
 
 	
