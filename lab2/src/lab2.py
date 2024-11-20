@@ -3,6 +3,7 @@
 import rospy
 import math
 import angles
+import numpy as np
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Twist
@@ -182,8 +183,54 @@ class Lab2:
 
         self.rotate(final_angle, rotate_speed)
 
+    def go_to_pure_Pau(self, msg: PoseStamped):
+        # stores the initial pose
+        current_x = self.px
+        current_y = self.py
+        theta = self.pth
+
+        # extract target position of the robot
+        target_x = msg.pose.position.x
+        target_y = msg.pose.position.y
+        (roll, pitch, yaw) = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
+        target_heading = yaw
+
+        # make rotation matrix to transform point in world frame to robot frame
+        R = np.array([[math.acos(theta), -math.asin(theta)] , [math.asin(theta), math.acos(theta)]])
+        
+        # target point in the world coordinates
+        Pw = np.array([[target_x],[target_y]])
+        
+        # robot point in the world coordinates
+        Rw = np.array([[current_x], [current_y]])
+
+        # transformation to get target point in robot coordinates
+        Pr = np.matmul(R, Pw) + Rw
+
+        # use ICC to come up with velocities for the wheels
+        # rho is the x coord of the point in robot frame
+        rho = Pr[0,0]
+
+        # set a constant omega for the angular speed
+        w = 0.5
+
+        # L is the track length
+        L = 0.2
+        
+        # velocities for the wheels
+        Vl = w(rho + (L/2))
+        Vr = w(rho - (L/2))
+
+        # while constantly until reached the last waypoint
+            # look at closest waypoint
+            # calculate Vl and Vr
+            # send those velocites to the wheels
+
+
+
+
     def go_to_pure(self, msg: PoseStamped):
-         # stores the initial pose
+        # stores the initial pose
         #self.send_speed(1.0, 0.0)
         current_x = self.px
         current_y = self.py
