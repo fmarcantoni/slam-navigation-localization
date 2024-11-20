@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-
+from __future__ import annotations
 import rospy
 import math
 import angles
-import numpy as np
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Twist
@@ -33,6 +32,8 @@ class Lab2:
         self.px = 0
         self.py = 0
         self.pth = 0
+        self.lastFoundIndex = 0     #this is for finding intersections
+        self.lookAhead = 0.5
 
 
 
@@ -183,52 +184,6 @@ class Lab2:
 
         self.rotate(final_angle, rotate_speed)
 
-    def go_to_pure_Pau(self, msg: PoseStamped):
-        # stores the initial pose
-        current_x = self.px
-        current_y = self.py
-        theta = self.pth
-
-        # extract target position of the robot
-        target_x = msg.pose.position.x
-        target_y = msg.pose.position.y
-        (roll, pitch, yaw) = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
-        target_heading = yaw
-
-        # make rotation matrix to transform point in world frame to robot frame
-        R = np.array([[math.acos(theta), -math.asin(theta)] , [math.asin(theta), math.acos(theta)]])
-        
-        # target point in the world coordinates
-        Pw = np.array([[target_x],[target_y]])
-        
-        # robot point in the world coordinates
-        Rw = np.array([[current_x], [current_y]])
-
-        # transformation to get target point in robot coordinates
-        Pr = np.matmul(R, Pw) + Rw
-
-        # use ICC to come up with velocities for the wheels
-        # rho is the x coord of the point in robot frame
-        rho = Pr[0,0]
-
-        # set a constant omega for the angular speed
-        w = 0.5
-
-        # L is the track length
-        L = 0.2
-        
-        # velocities for the wheels
-        Vl = w(rho + (L/2))
-        Vr = w(rho - (L/2))
-
-        # while constantly until reached the last waypoint
-            # look at closest waypoint
-            # calculate Vl and Vr
-            # send those velocites to the wheels
-
-
-
-
     def go_to_pure(self, msg: PoseStamped):
         # stores the initial pose
         #self.send_speed(1.0, 0.0)
@@ -335,7 +290,7 @@ class Lab2:
         for location in list_of_locations:
             print("we are going to the next pose")
             #self.go_to(location)
-            self.go_to_pure(location)
+            self.go_to(location)
 
     def update_odometry(self, msg: Odometry):
         """
@@ -387,6 +342,114 @@ class Lab2:
 
         # stop the robot
         self.send_speed(0.0, 0.0)
+
+
+    def sgn(num):
+        """
+        Helper method needed to find interesctions of the path in the circle of lookahead distance.
+        :param num         input of the function
+        :returns -1 or 1
+        """
+        if num >= 0:
+            return 1
+        else:
+            return -1
+
+    def distance_points(point1, point2) -> float:
+        distance = math.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1]))
+        return distance
+
+    def path_interesections(self, p1: tuple[float, float], p2: tuple[float, float]) -> tuple[float, float]:
+        """
+        detect the point to follow for pure pursuit, math based from Purdue's implementation
+        :param p1 [float, float]        first point of the path
+        :param p2 [float, float]        second point of the path
+        :param lookupDistance           radius of the circle that the robot considers to follow points
+        :returns            tuple of point to follow
+        :                   return None if the path doesn't intersect the circle
+        """
+
+        l = self.lookAhead
+
+        x1 = p1[0]
+        x2 = p2[0]
+        y1 = p1[1]
+        y2 = p2[1]
+        
+        # adjust to center p1 and p2 on the robot
+        x1_adjusted = x1 - self.px
+        x2_adjusted = x2 - self.px
+        y1_adjusted = y1 - self.py
+        y2_adjusted = y2 - self.py
+
+        # some intermediate variables
+        dx = x2_adjusted - x1_adjusted
+        dy = y2_adjusted - y1_adjusted
+        dr = math.sqrt(dx**2 + dy**2)
+        D = x1_adjusted*y2_adjusted - x2_adjusted*y1_adjusted
+
+        incidence = (l*dr)**2 - D**2
+
+        if incidence > 0:       # there are two solutions, but we only want to return the closest
+            # calculate the Xs and the Yx of the two points that intercect the circle
+            X1 = ((D*dy) + self.sgn(dy)*dx*math.sqrt(incidence))/(dr**2)
+            X2 = ((D*dy) - self.sgn(dy)*dx*math.sqrt(incidence))/(dr**2)
+
+            Y1 = ((-D*dy) + abs(dy)*math.sqrt(incidence))/(dr**2)
+            Y2 = ((-D*dy) - abs(dy)*math.sqrt(incidence))/(dr**2)
+
+            # arrange back to remove the offset
+            X1 = X1 + self.px
+            X2 = X2 + self.px
+            Y1 = Y1 + self.py
+            Y2 = Y2 + self.py
+
+            # calculate distance between the interesction point and p2
+            distance1 = math.sqrt((x2 - X1)**2 + (y2 - Y1)**2)
+            distance2 = math.sqrt((x2 - X2)**2 + (y2 - Y2)**2)
+            
+            # return only if it is within range, if not, check which one is closest
+            if not (min(x1, x2)<= X1 <= max(x1, x2)) and (min(y1, y2)<= Y1 <= max(y1, y2)):
+                if not (min(x1, x2)<= X2 <= max(x1, x2)) and (min(y1, y2)<= Y2 <= max(y1, y2)):
+                    return None
+                else:
+                    return [X2, Y2]
+            elif not (min(x1, x2)<= X2 <= max(x1, x2)) and (min(y1, y2)<= Y2 <= max(y1, y2)):
+                return [X1, Y1]
+            else:
+                if distance1 < distance2:
+                    return [X1, Y1]
+                else:
+                    return [X2, Y2]
+
+        elif incidence == 0:    # there is only one solution
+            X1 = (D*dy)/(dr**2)
+            Y1 = (-D*dy)/(dr**2)
+            return [X1, Y1]
+        
+        else:                   # there are no solutions
+            return None
+
+
+    def goal_pt_search(self, msg: Path):
+        
+        startingIndex = self.lastFoundIndex
+        for i in range (startingIndex, len(msg.poses)-1):
+            
+            # calculate the interesction
+            potentiallyFollow = self.path_interesections(self.lastFoundIndex, (self.lastFoundIndex + 1), self.lookAhead)
+            if potentiallyFollow == None:
+                potetiallyFollow = msg.poses(self.lastFoundIndex)
+
+
+            # if the robot is closer to the next index than the goal, change index
+            P2 = msg.poses(self.lastFoundIndex + 1)
+            if self.distance_points(P2, potentiallyFollow) > self.distance_points([self.px, self.py], P2):
+                self.lastFoundIndex = i + 1
+                break
+            else:
+                self.lastFondIndex = i
+                break
 
 
     def run(self):
