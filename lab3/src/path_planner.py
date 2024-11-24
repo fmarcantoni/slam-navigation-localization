@@ -449,9 +449,9 @@ class PathPlanner:
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
         path  = self.a_star(cspacedata, start, goal)
         ## Optimize waypoints
-        waypoints = PathPlanner.optimize_path(path)
+        # waypoints = PathPlanner.optimize_path(path)
         ## Return a Path message
-        return self.path_to_message(mapdata, waypoints)
+        return self.path_to_message(mapdata, path)
 
 
     

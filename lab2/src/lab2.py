@@ -33,7 +33,9 @@ class Lab2:
         self.py = 0
         self.pth = 0
         self.lastFoundIndex = 0     #this is for finding intersections
-        self.lookAhead = 0.5
+        self.lookAhead = 1
+        self.Kp_turn = 0.1
+        self.Kp_lin = 1
 
 
 
@@ -281,16 +283,28 @@ class Lab2:
         """
 
     def go_to_destination(self, msg: Path):
-        print("hello")
+        print("New Destination Received")
+        
+
+        coordinatesInPath = []
+        # print all the coordinates of the path
+        print("(x, y): ")
+        for pose in msg.poses:
+            print(pose.pose.position.x, ", ", pose.pose.position.y)
+            coordinatesInPath.append([pose.pose.position.x, pose.pose.position.y])
+        # print("coordinates in path: ", coordinatesInPath)
+        
         list_of_locations = []
         list_of_locations = msg.poses
         self.send_speed(0.0, 0.0)
 
-        # runs through this list of location and for every location (PoseStamped), call go_to on it
-        for location in list_of_locations:
-            print("we are going to the next pose")
-            #self.go_to(location)
-            self.go_to(location)
+        # # runs through this list of location and for every location (PoseStamped), call go_to on it
+        # for location in list_of_locations:
+        #     print("we are going to the next pose")
+        #     #self.go_to(location)
+        #     self.go_to(location)
+        
+        self.goal_pt_search(coordinatesInPath)
 
     def update_odometry(self, msg: Odometry):
         """
@@ -303,11 +317,14 @@ class Lab2:
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
 
+        print
+
         quat_orig = msg.pose.pose.orientation
         quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
 
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
-        self.pth = yaw
+        self.pth = math.degrees(yaw)
+
 
     def smooth_drive(self, distance: float, linear_speed: float):
         """
@@ -344,7 +361,11 @@ class Lab2:
         self.send_speed(0.0, 0.0)
 
 
-    def sgn(num):
+    ##########################################################################################
+    ################### FROM HERE ON IS THE IMPLEMENTATION OF PURE PURSUIT ###################
+    ##########################################################################################
+    
+    def sgn(self, num: float):
         """
         Helper method needed to find interesctions of the path in the circle of lookahead distance.
         :param num         input of the function
@@ -355,8 +376,8 @@ class Lab2:
         else:
             return -1
 
-    def distance_points(point1, point2) -> float:
-        distance = math.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1]))
+    def distance_points(self, point1, point2) -> float:
+        distance = math.sqrt((point2[0] - point1[0])**2 + (point2[1] - point1[1])**2)
         return distance
 
     def path_interesections(self, p1: tuple[float, float], p2: tuple[float, float]) -> tuple[float, float]:
@@ -368,7 +389,6 @@ class Lab2:
         :returns            tuple of point to follow
         :                   return None if the path doesn't intersect the circle
         """
-
         l = self.lookAhead
 
         x1 = p1[0]
@@ -376,12 +396,20 @@ class Lab2:
         y1 = p1[1]
         y2 = p2[1]
         
+        print()
+        print()
+        print("--------------------- Finding the interesections -------------")
+        print("(x1, y1): ", p1)
+        print("(x2, y2): ", p2)
+        
         # adjust to center p1 and p2 on the robot
         x1_adjusted = x1 - self.px
         x2_adjusted = x2 - self.px
         y1_adjusted = y1 - self.py
         y2_adjusted = y2 - self.py
 
+        print("current x, current y", self.px, self.py)
+        
         # some intermediate variables
         dx = x2_adjusted - x1_adjusted
         dy = y2_adjusted - y1_adjusted
@@ -389,6 +417,8 @@ class Lab2:
         D = x1_adjusted*y2_adjusted - x2_adjusted*y1_adjusted
 
         incidence = (l*dr)**2 - D**2
+        print("lookahead distance: ", l)
+        print("incidence: ", incidence)
 
         if incidence > 0:       # there are two solutions, but we only want to return the closest
             # calculate the Xs and the Yx of the two points that intercect the circle
@@ -430,26 +460,80 @@ class Lab2:
         else:                   # there are no solutions
             return None
 
+    def find_min_angle(self, absTargetAngle, currentHeading) -> float:
+        """
+        find the angle needed to go from current heading to goal heading
+        :param p1 [float, float]        first point of the path
+        :param p2 [float, float]        second point of the path
+        :param lookupDistance           radius of the circle that the robot considers to follow points
+        :returns            tuple of point to follow
+        :                   return None if the path doesn't intersect the circle
+        """
 
-    def goal_pt_search(self, msg: Path):
+        minAngle = absTargetAngle - currentHeading
+
+        if minAngle > 180 or minAngle < -180 :
+            minAngle = -1 * self.sgn(minAngle) * (360 - abs(minAngle))
+
+        return minAngle
+    
+    def move_robot(self, target: tuple[float, float]):
+
+        targetx = target[0]
+        targety = target[1]
+        currentx = self.px
+        currenty = self.py
+
+        # linear error is the distance from one current point to the target
+        linearError = self.distance_points([currentx, currenty], target)
+
+        targetHeading = math.degrees(math.atan2(targety - currenty, targetx - currentx))
+        if targetHeading < 0:
+            targetHeading += 360
+
+        currentHeading = self.pth
+        turnError = self.find_min_angle(targetHeading, currentHeading)
+
+        # once you have angular error and linear error
+        # if error is possitive, then robot should turn counterclockwise
+        #   leftVel = linearVel - turnVel and rightVel = linearVel + turnVel
+        # Proportional Controller for linearSpeed and angularSpeed
+        linearVel = self.Kp_lin * linearError
+        turnVel = self.Kp_turn * turnError
+
+        self.send_speed(linearVel, turnVel)
+
+    def goal_pt_search(self, path: list[tuple[float, float]]):
         
         startingIndex = self.lastFoundIndex
-        for i in range (startingIndex, len(msg.poses)-1):
+        for i in range (startingIndex, len(path)-1):
+            print()
+            print("i: %i, startingIndex: %i" % (i, startingIndex))
+            # pointLastFoundIndex = [msg.poses[self.lastFoundIndex].pose.position.x, msg.poses[self.lastFoundIndex].pose.position.y]
+            # pointLastFoundIndex1 = [msg.poses[self.lastFoundIndex + 1].pose.position.x, msg.poses[self.lastFoundIndex + 1].pose.position.y]
             
             # calculate the interesction
-            potentiallyFollow = self.path_interesections(self.lastFoundIndex, (self.lastFoundIndex + 1), self.lookAhead)
+            potentiallyFollow = self.path_interesections(path[self.lastFoundIndex], path[self.lastFoundIndex + 1])
+            print("potentially follow: ", potentiallyFollow)
             if potentiallyFollow == None:
-                potetiallyFollow = msg.poses(self.lastFoundIndex)
+                potentiallyFollow = path[self.lastFoundIndex]
 
 
             # if the robot is closer to the next index than the goal, change index
-            P2 = msg.poses(self.lastFoundIndex + 1)
+            P2 = path[self.lastFoundIndex + 1]
             if self.distance_points(P2, potentiallyFollow) > self.distance_points([self.px, self.py], P2):
                 self.lastFoundIndex = i + 1
-                break
             else:
-                self.lastFondIndex = i
+                self.lastFoundIndex = i
                 break
+
+        self.move_robot(potentiallyFollow)
+    
+
+    ##########################################################################################
+    ########################## This is the end of the pure pursuit. ##########################
+    ##########################################################################################
+
 
 
     def run(self):
