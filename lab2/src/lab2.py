@@ -33,9 +33,12 @@ class Lab2:
         self.py = 0
         self.pth = 0
         self.lastFoundIndex = 0     #this is for finding intersections
-        self.lookAhead = 1
-        self.Kp_turn = 0.1
+        self.lookAhead = 0.3
+        self.Kp_turn = 0.05
         self.Kp_lin = 1
+
+        self.givenDestination = False
+        self.pathCoordinates = []
 
 
 
@@ -304,7 +307,14 @@ class Lab2:
         #     #self.go_to(location)
         #     self.go_to(location)
         
-        self.goal_pt_search(coordinatesInPath)
+
+        #flag variable to turn on the goal point search
+        self.givenDestination = True
+        self.lastFoundIndex = 0
+        self.pathCoordinates.clear()
+
+        for i in range(0, len(coordinatesInPath)-1):
+            self.pathCoordinates.append(coordinatesInPath[i])
 
     def update_odometry(self, msg: Odometry):
         """
@@ -416,7 +426,7 @@ class Lab2:
         dr = math.sqrt(dx**2 + dy**2)
         D = x1_adjusted*y2_adjusted - x2_adjusted*y1_adjusted
 
-        incidence = (l*dr)**2 - D**2
+        incidence = (l**2) * (dr**2) - D**2
         print("lookahead distance: ", l)
         print("incidence: ", incidence)
 
@@ -478,7 +488,7 @@ class Lab2:
         return minAngle
     
     def move_robot(self, target: tuple[float, float]):
-
+        print("Moving Robot to %f, %f" % (target[0], target[1]))
         targetx = target[0]
         targety = target[1]
         currentx = self.px
@@ -504,11 +514,28 @@ class Lab2:
         self.send_speed(linearVel, turnVel)
 
     def goal_pt_search(self, path: list[tuple[float, float]]):
+        """
+            this function is called constantly and udpates the last Found index if the robot passes that point in order to move forward
+
+        """
         
-        startingIndex = self.lastFoundIndex
-        for i in range (startingIndex, len(path)-1):
-            print()
-            print("i: %i, startingIndex: %i" % (i, startingIndex))
+        print("Goal point searching...")
+
+
+        #check if the robot has reached its final destination to stop
+        
+        finalPosition = path[-1]
+        potentiallyFollow = finalPosition
+        if self.distance_points(finalPosition, [self.px, self.py]) < self.lookAhead:
+            print("Has reached the destination!")
+            print(finalPosition)
+            self.send_speed(0.0, 0.0)
+            self.givenDestination = False
+            return 
+
+
+        # loop through whatever is left of the path
+        for i in range (self.lastFoundIndex, len(path)-1):
             # pointLastFoundIndex = [msg.poses[self.lastFoundIndex].pose.position.x, msg.poses[self.lastFoundIndex].pose.position.y]
             # pointLastFoundIndex1 = [msg.poses[self.lastFoundIndex + 1].pose.position.x, msg.poses[self.lastFoundIndex + 1].pose.position.y]
             
@@ -527,6 +554,7 @@ class Lab2:
                 self.lastFoundIndex = i
                 break
 
+        # self.move_robot([-0.34999, 1.28])
         self.move_robot(potentiallyFollow)
     
 
@@ -537,7 +565,11 @@ class Lab2:
 
 
     def run(self):
-        rospy.spin()
+        while True:
+            #only do goal point search if given a destination
+            if self.givenDestination:
+                self.goal_pt_search(self.pathCoordinates)
+        # rospy.spin()
 
 if __name__ == '__main__':
     Lab2().run()
