@@ -35,7 +35,7 @@ class Lab2:
         self.lastFoundIndex = 0     #this is for finding intersections
         self.lookAhead = 0.3
         self.Kp_turn = 0.05
-        self.Kp_lin = 1
+        self.Kp_lin = 0.8
 
         self.givenDestination = False
         self.pathCoordinates = []
@@ -313,7 +313,7 @@ class Lab2:
         self.lastFoundIndex = 0
         self.pathCoordinates.clear()
 
-        for i in range(0, len(coordinatesInPath)-1):
+        for i in range(0, len(coordinatesInPath)):
             self.pathCoordinates.append(coordinatesInPath[i])
 
     def update_odometry(self, msg: Odometry):
@@ -327,7 +327,7 @@ class Lab2:
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
 
-        print
+        
 
         quat_orig = msg.pose.pose.orientation
         quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
@@ -406,11 +406,11 @@ class Lab2:
         y1 = p1[1]
         y2 = p2[1]
         
-        print()
-        print()
-        print("--------------------- Finding the interesections -------------")
-        print("(x1, y1): ", p1)
-        print("(x2, y2): ", p2)
+        ###################################################################################################print()
+        ###################################################################################################print()
+        ###################################################################################################print("--------------------- Finding the interesections -------------")
+        ###################################################################################################print("(x1, y1): ", p1)
+        ###################################################################################################print("(x2, y2): ", p2)
         
         # adjust to center p1 and p2 on the robot
         x1_adjusted = x1 - self.px
@@ -418,7 +418,7 @@ class Lab2:
         y1_adjusted = y1 - self.py
         y2_adjusted = y2 - self.py
 
-        print("current x, current y", self.px, self.py)
+        ###################################################################################################print("current x, current y", self.px, self.py)
         
         # some intermediate variables
         dx = x2_adjusted - x1_adjusted
@@ -427,8 +427,8 @@ class Lab2:
         D = x1_adjusted*y2_adjusted - x2_adjusted*y1_adjusted
 
         incidence = (l**2) * (dr**2) - D**2
-        print("lookahead distance: ", l)
-        print("incidence: ", incidence)
+        ################################################################################################### print("lookahead distance: ", l)
+        ################################################################################################### print("incidence: ", incidence)
 
         if incidence > 0:       # there are two solutions, but we only want to return the closest
             # calculate the Xs and the Yx of the two points that intercect the circle
@@ -488,7 +488,7 @@ class Lab2:
         return minAngle
     
     def move_robot(self, target: tuple[float, float]):
-        print("Moving Robot to %f, %f" % (target[0], target[1]))
+        ###################################################################################################print("Moving Robot to %f, %f" % (target[0], target[1]))
         targetx = target[0]
         targety = target[1]
         currentx = self.px
@@ -519,11 +519,18 @@ class Lab2:
 
         """
         
-        print("Goal point searching...")
+        ###################################################################################################print("Goal point searching...")
 
 
         #check if the robot has reached its final destination to stop
         
+        #act like it reached the end if the path is empty
+        if not path:
+            print("The list is empty.")
+            self.givenDestination = False
+            self.send_speed(0.0, 0.0)
+            return
+
         finalPosition = path[-1]
         potentiallyFollow = finalPosition
         if self.distance_points(finalPosition, [self.px, self.py]) < self.lookAhead:
@@ -541,7 +548,7 @@ class Lab2:
             
             # calculate the interesction
             potentiallyFollow = self.path_interesections(path[self.lastFoundIndex], path[self.lastFoundIndex + 1])
-            print("potentially follow: ", potentiallyFollow)
+            ###################################################################################################print("potentially follow: ", potentiallyFollow)
             if potentiallyFollow == None:
                 potentiallyFollow = path[self.lastFoundIndex]
 
