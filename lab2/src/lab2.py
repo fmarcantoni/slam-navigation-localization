@@ -4,7 +4,7 @@ import rospy
 import math
 import angles
 from nav_msgs.msg import Odometry, Path
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PointStamped
 from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
 
@@ -22,6 +22,9 @@ class Lab2:
         ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
         ### When a message is received, call self.update_odometry
         rospy.Subscriber('/odom', Odometry, self.update_odometry)
+        ## Create a publisher for the point that the robot is following in pure pursuit
+        ## The topic is "/pointToFollow", the message type is pointStamped
+        self.pointFollowing = rospy.Publisher("/pointToFollow", PointStamped, queue_size=10)
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
         #rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
@@ -38,6 +41,7 @@ class Lab2:
         self.Kp_lin = 0.8
 
         self.givenDestination = False
+        self.oldTime = 0.0
         self.pathCoordinates = []
 
 
@@ -560,6 +564,18 @@ class Lab2:
             else:
                 self.lastFoundIndex = i
                 break
+
+        followPoint = PointStamped()
+        followPoint.header.frame_id = "/odom"
+        followPoint.point.x = potentiallyFollow[0]
+        followPoint.point.y = potentiallyFollow[1]
+        followPoint.point.z = 0  
+  
+        # if ((rospy.get_time() - self.oldTime) > 1):
+        #     self.oldTime = rospy.get_time()
+        #     self.pointFollowing.publish(followPoint)
+
+        # print(potentiallyFollow)
 
         # self.move_robot([-0.34999, 1.28])
         self.move_robot(potentiallyFollow)
