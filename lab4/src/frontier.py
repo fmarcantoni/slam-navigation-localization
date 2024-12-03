@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections import deque
 
-from priority_queue import PriorityQueue
+# from priority_queue import PriorityQueue
 
 import math
 import rospy
@@ -21,7 +21,9 @@ class Frontier:
         rospy.init_node("Frontier_Exp")
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
-        self.centroid_pub = rospy.Publisher("/frontier", GridCells, queue_size=10)
+        self.centroid_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=10)
+        self.frontier_viz = rospy.Publisher("/frontier", GridCells, queue_size=10)
+        self.frontier_markers_viz = rospy.Publisher("/frontier_markers", MarkerArray, queue_size=10)
         self.px = 0
         self.py = 0
         self.pth = 0
@@ -173,7 +175,8 @@ class Frontier:
 
     def choose_centroid(self, zero_crossings: np.ndarray) -> tuple:
         frontiers = self.create_frontiers(zero_crossings)
-
+        self.publish_frontier(frontiers)
+        self.publish_frontier_markers(frontiers)
         corrected_frontiers = sorted(frontiers, key=len)
         
         sizes = []
@@ -195,12 +198,62 @@ class Frontier:
         
         return centroids[np.argmin(heuristic)]
 
+    def publish_frontier(self, frontier: list[tuple]) -> None:
+        frontier_msg = GridCells()
+        frontier_msg.header.frame_id = "map"
+        frontier_msg.header.stamp = rospy.Time.now()
+        frontier_msg.cell_width = self.map_info.resolution
+        frontier_msg.cell_height = self.map_info.resolution
+
+        # Convert tuples to world coordinates
+        compiled_frontier = []
+        for point_in_frontier in range(len(frontier)):
+            world_x = self.map_info.origin.position.x + point_in_frontier[0] * self.map_info.resolution
+            world_y = self.map_info.origin.position.y + point_in_frontier[1] * self.map_info.resolution
+            world_point = Point(x = world_x, y = world_y, z = 0)
+            compiled_frontier.append(world_point)
+
+        frontier_msg.cells = compiled_frontier
+        self.frontier_viz.publish(frontier_msg)
+
+    def publish_frontier_markers(self, frontier: list[tuple]) -> None:
+        
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "frontier_markers"
+        marker.id = 0
+        marker.type = Marker.SPHERE_LIST
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        # marker.pose.position.x = frontier[0]
+        # marker.pose.position.y = frontier[1]
+        # marker.pose.position.z = 0
+        marker.scale.x = 0.5
+        marker.scale.y = 0.5
+        marker.scale.z = 0.5
+        marker.color.a = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+
+        for point_in_frontier in frontier:
+            marker.points.append(point_in_frontier)
+
+
+        marker_array.markers.append(marker)
+
+        self.frontier_markers_viz.publish(marker_array)
+
+        #frontiers_pub.publish(marker)
+
+
+
     def publish_centroid(self, centroid: tuple) -> None:
-        grid_cells_msg = GridCells()
-        grid_cells_msg.header.frame_id = "map"
-        grid_cells_msg.header.stamp = rospy.Time.now()
-        grid_cells_msg.cell_width = self.map_info.resolution
-        grid_cells_msg.cell_height = self.map_info.resolution
+        goal_position_msg = PoseStamped()
+        # goal_position.header = rospy.Time.now()
+        # goal_position.header.stamp = rospy.Time.now()
 
         # grid indices to world coordinates
         world_x = self.map_info.origin.position.x + centroid[0] * self.map_info.resolution
@@ -208,10 +261,20 @@ class Frontier:
 
         centroid_point = Point(x = world_x, y = world_y, z = 0)
 
-        grid_cells_msg.cells = [centroid_point]
+        goal_position_msg.pose.position.x = world_x
+        goal_position_msg.pose.position.y = world_y
+        goal_position_msg.pose.position.z = 0
+        goal_position_msg.pose.orientation = self.pth
+
+        # grid_cells_msg.header.frame_id = "map"
+        # grid_cells_msg.header.stamp = rospy.Time.now()
+        # grid_cells_msg.cell_width = self.map_info.resolution
+        # grid_cells_msg.cell_height = self.map_info.resolution
+
+        #grid_cells_msg.cells = [centroid_point]
 
         # Publish the GridCells message
-        self.centroid_pub.publish(grid_cells_msg)
+        self.centroid_pub.publish(goal_position_msg)
 
     def save_final_map():
         map_path = "~/final_map"
