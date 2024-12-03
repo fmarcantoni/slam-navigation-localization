@@ -14,6 +14,7 @@ from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path, Odometry
 from geometry_msgs.msg import Point, Pose, PoseStamped
 from tf.transformations import euler_from_quaternion
+from visualization_msgs.msg import Marker, MarkerArray
 
 
 class Frontier:
@@ -21,13 +22,19 @@ class Frontier:
         rospy.init_node("Frontier_Exp")
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
-        self.centroid_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=10)
+        #self.centroid_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=10)
+        self.centroid_pub = rospy.Publisher("/centroid", Marker, queue_size=10)
         self.frontier_viz = rospy.Publisher("/frontier", GridCells, queue_size=10)
         self.frontier_markers_viz = rospy.Publisher("/frontier_markers", MarkerArray, queue_size=10)
         self.px = 0
         self.py = 0
         self.pth = 0
-    
+        self.grid = None
+        self.map_info = None
+        self.frontiers = []
+
+        rospy.Timer(rospy.Duration(1), self.calculate_and_publish_frontiers)  # Check every 1 second
+
     def update_odom(self, msg: Odometry) -> None:
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
@@ -36,15 +43,51 @@ class Frontier:
         quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = math.degrees(yaw)
+        
     
     def map_callback(self, mapdata: OccupancyGrid) -> None:
         # https://www.netlib.org/utk/lsi/pcwLSI/text/node433.html
         
         self.map_info = mapdata.info
+        self.grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
         
+        # # Step 1: Preprocess map
+        # grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
+        # binary_map = self.map_preprocess(grid)
+        
+        # # Step 2: Gaussian smoothing
+        # smoothed = self.map_smooth(binary_map)
+        
+        # # Step 3: Compute Laplacian
+        # laplacian = self.compute_laplacian(smoothed)
+        
+        # # Step 3.5: Morphological Closing
+        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, 3)
+        # laplacian_closed = cv2.morphologyEx(laplacian, cv2.MORPH_CLOSE, kernel)
+        
+        # # Step 4: Detect zero crossings
+        # edges = self.detect_zero_crossings(laplacian_closed)
+
+        # # Step 5: Create Frontier
+        # frontier = self.create_frontiers(edges)
+        
+        # # Step 5: Choose Centroid
+        # chosen_centroid = self.choose_centroid(frontier)
+        # print("Chosen this centroid")
+        # print(chosen_centroid)
+        
+        # # Step 6: Publish Centroid
+        # self.publish_frontier(frontier)
+        # self.publish_frontier_markers(frontier)
+        # self.publish_centroid(chosen_centroid)
+    
+    def calculate_and_publish_frontiers(self, event=None) -> None:
+        if self.grid is None:
+            rospy.logwarn("Map data not received yet, skipping frontier calculation.")
+            return
         # Step 1: Preprocess map
-        grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
-        binary_map = self.map_preprocess(grid)
+        
+        binary_map = self.map_preprocess(self.grid)
         
         # Step 2: Gaussian smoothing
         smoothed = self.map_smooth(binary_map)
@@ -53,18 +96,29 @@ class Frontier:
         laplacian = self.compute_laplacian(smoothed)
         
         # Step 3.5: Morphological Closing
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, 3)
+        #kernel = cv2.getStructuringElement(cv2.MORPH_RECT, 3)
+        kernel = cv2.getStructuringElement(3, 3)
         laplacian_closed = cv2.morphologyEx(laplacian, cv2.MORPH_CLOSE, kernel)
         
         # Step 4: Detect zero crossings
         edges = self.detect_zero_crossings(laplacian_closed)
+
+        # Step 5: Create Frontier
+        frontiers = self.create_frontiers(edges)
+        self.frontiers = frontiers
+
+         # Step 6: Choose Centroid (optional, depending on your use case)
+        if frontiers:
+            chosen_centroid = self.choose_centroid(frontiers)
+            self.publish_centroid(chosen_centroid)
+            print("Chosen this centroid")
+            print(chosen_centroid)
+
+        # Always publish the frontiers
+        self.publish_frontier(frontiers)
+        self.publish_frontier_markers(frontiers)
         
-        # Step 5: Choose Centroid
-        chosen_centroid = self.choose_centroid(edges)
-        
-        # Step 6: Publish Centroid
-        self.publish_centroid(chosen_centroid)
-    
+
     def map_preprocess(self, grid: np.ndarray) -> np.ndarray:
         width, height = grid.shape
         bin_map = np.zeros((width, height), dtype = np.uint8) #Empty binary map
@@ -119,36 +173,42 @@ class Frontier:
         # Iterate through the zero-crossing array and perform BFS to find frontiers
         for i in range(zero_crossings.shape[0]):
             for j in range(zero_crossings.shape[1]):
-                if zero_crossings[i, j] == 255 and not visited[i, j]:
+                if zero_crossings[i, j] == 255 and self.is_frontier(i, j, zero_crossings):
                     frontier = self.bfs(i, j, zero_crossings, visited)
-                    frontiers.append(frontier)        
+                    frontiers.append(frontier) 
+
         return frontiers
+
+    def is_frontier(self, i: int, j: int, grid: np.ndarray) -> bool:
+        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+        for di, dj in neighbors:
+            ni, nj = i + di, j + dj
+            if 0 <= ni < grid.shape[0] and 0 <= nj < grid.shape[1]:
+                if grid[ni, nj] == 127:  # Neighbor is unknown space
+                    return True
+        return False
     
-    def bfs(self, start_i, start_j, zero_crossings: np.ndarray, visited: np.ndarray) -> list[tuple]:
+    def bfs(self, start_i: int, start_j: int, grid: np.ndarray, visited: np.ndarray) -> list[tuple]:
         frontier = []
         search_queue = deque([(start_i, start_j)])
         visited[start_i, start_j] = True
-        
+
         while search_queue:
             i, j = search_queue.popleft()
             frontier.append((i, j))
 
             # Check 8 neighbors
-            neighbors = [(-1, 0), 
-                         (1, 0), 
-                         (0, -1), 
-                         (0, 1), 
-                         (-1, -1), 
-                         (-1, 1), 
-                         (1, -1), 
-                         (1, 1)]
-            for diff_i, diff_j in neighbors:
-                neighbor_i, neighbor_j = i + diff_i, j + diff_j
-                #If within bounds, unvisited, and 255 (a detected edge)
-                if 0 <= neighbor_i < zero_crossings.shape[0] and 0 <= neighbor_j < zero_crossings.shape[1] and not visited[neighbor_i, neighbor_j] and zero_crossings[neighbor_i, neighbor_j] == 255:
-                    visited[neighbor_i, neighbor_j] = True
-                    search_queue.append((neighbor_i, neighbor_j))
+            neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+            for di, dj in neighbors:
+                ni, nj = i + di, j + dj
+                # If within bounds, unvisited, and free space
+                if 0 <= ni < grid.shape[0] and 0 <= nj < grid.shape[1]:
+                    if not visited[ni, nj] and grid[ni, nj] == 255:
+                        visited[ni, nj] = True
+                        search_queue.append((ni, nj))
+
         return frontier
+
     
     def calculate_centroids(self, frontier_list: list[list[tuple]]) -> list[tuple]:
         centroids = []
@@ -195,7 +255,7 @@ class Frontier:
         #gets costs, not yet normalized to max dist/cost
         for h in range(len(centroids)):
             heuristic.append(alpha * distances[h] - beta * sizes[h])
-        
+        print(centroids[np.argmin(heuristic)])
         return centroids[np.argmin(heuristic)]
 
     def publish_frontier(self, frontier: list[tuple]) -> None:
@@ -213,6 +273,8 @@ class Frontier:
             world_point = Point(x = world_x, y = world_y, z = 0)
             compiled_frontier.append(world_point)
 
+        print("Frontier")
+        print(compiled_frontier)
         frontier_msg.cells = compiled_frontier
         self.frontier_viz.publish(frontier_msg)
 
@@ -251,30 +313,56 @@ class Frontier:
 
 
     def publish_centroid(self, centroid: tuple) -> None:
-        goal_position_msg = PoseStamped()
-        # goal_position.header = rospy.Time.now()
-        # goal_position.header.stamp = rospy.Time.now()
-
-        # grid indices to world coordinates
+         # grid indices to world coordinates
         world_x = self.map_info.origin.position.x + centroid[0] * self.map_info.resolution
         world_y = self.map_info.origin.position.y + centroid[1] * self.map_info.resolution
 
-        centroid_point = Point(x = world_x, y = world_y, z = 0)
+        
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "next_centroid"
+        marker.id = 0
+        marker.type = Marker.SPHERE_LIST
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.pose.position.x = world_x
+        marker.pose.position.y = world_y
+        marker.pose.position.z = 0
+        marker.scale.x = 0.5
+        marker.scale.y = 0.5
+        marker.scale.z = 0.5
+        marker.color.a = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+        self.centroid_pub.publish(marker)
 
-        goal_position_msg.pose.position.x = world_x
-        goal_position_msg.pose.position.y = world_y
-        goal_position_msg.pose.position.z = 0
-        goal_position_msg.pose.orientation = self.pth
+    # def publish_centroid(self, centroid: tuple) -> None:
+    #     goal_position_msg = PoseStamped()
+    #     # goal_position.header = rospy.Time.now()
+    #     # goal_position.header.stamp = rospy.Time.now()
 
-        # grid_cells_msg.header.frame_id = "map"
-        # grid_cells_msg.header.stamp = rospy.Time.now()
-        # grid_cells_msg.cell_width = self.map_info.resolution
-        # grid_cells_msg.cell_height = self.map_info.resolution
+    #     # grid indices to world coordinates
+    #     world_x = self.map_info.origin.position.x + centroid[0] * self.map_info.resolution
+    #     world_y = self.map_info.origin.position.y + centroid[1] * self.map_info.resolution
 
-        #grid_cells_msg.cells = [centroid_point]
+    #     centroid_point = Point(x = world_x, y = world_y, z = 0)
 
-        # Publish the GridCells message
-        self.centroid_pub.publish(goal_position_msg)
+    #     goal_position_msg.pose.position.x = world_x
+    #     goal_position_msg.pose.position.y = world_y
+    #     goal_position_msg.pose.position.z = 0
+    #     goal_position_msg.pose.orientation = self.pth
+
+    #     # grid_cells_msg.header.frame_id = "map"
+    #     # grid_cells_msg.header.stamp = rospy.Time.now()
+    #     # grid_cells_msg.cell_width = self.map_info.resolution
+    #     # grid_cells_msg.cell_height = self.map_info.resolution
+
+    #     #grid_cells_msg.cells = [centroid_point]
+
+    #     # Publish the GridCells message
+    #     self.centroid_pub.publish(goal_position_msg)
 
     def save_final_map():
         map_path = "~/final_map"
