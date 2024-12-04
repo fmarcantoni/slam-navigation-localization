@@ -135,11 +135,11 @@ class Frontier:
         # crossings_map = cv2.filter2D(laplacian, -1, kernel)
         # zero_crossings[np.abs(crossings_map) > 0] = 255
         # return zero_crossings
-        for i in range(1, zero_crossings.shape[1]-1):
-            for j in range(1, zero_crossings.shape[0]-1):
+        for i in range(1, zero_crossings.shape[0]-1):
+            for j in range(1, zero_crossings.shape[1]-1):
                 # Zero-crossing detection condition
                 if (not (laplacian[i, j] * laplacian[i + 1, j] == 0)) or (not (laplacian[i, j] * laplacian[i, j + 1] == 0)):
-                    zero_crossings[i, j] = 255  # Mark as edge
+                    zero_crossings[j, i] = 255  # Mark as edge
         return zero_crossings
     
     def create_frontiers(self, zero_crossings: np.ndarray) -> list[list[tuple]]:
