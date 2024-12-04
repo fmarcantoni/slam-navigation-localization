@@ -23,6 +23,7 @@ class Frontier:
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
         self.centroid_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=10)
         self.frontier_viz = rospy.Publisher("/frontier", GridCells, queue_size=10)
+        self.map_pub = rospy.Publisher("/map/Zeros", OccupancyGrid, queue_size=10)
         # self.frontier_markers_viz = rospy.Publisher("/frontier_markers", MarkerArray, queue_size=10)
         self.px = 0
         self.py = 0
@@ -72,6 +73,10 @@ class Frontier:
         edges = self.detect_zero_crossings(laplacian)
         print("4/6 :::: Detected zero crossings")
 
+        # Step 4.1 Publish 0-crossing map
+        # crossing_map = self.publish_map()
+
+
         # Step 5: Choose Centroid
         chosen_centroid = self.choose_centroid(edges)
         print("5/6 :::: Chose centroid to pursue")
@@ -101,22 +106,22 @@ class Frontier:
         # return bin_map
 
     def map_smooth(self, bin_map: np.ndarray) -> np.ndarray:
-        smooth_map = cv2.GaussianBlur(bin_map, (3, 3), 1.0)  # Kernel size = 3, Sigma = 1.0
+        smooth_map = cv2.GaussianBlur(bin_map, (3, 3), 1)  # Kernel size = 3, Sigma = 1.0
         return smooth_map
         
         
         # http://demofox.org/gauss.html
         # Sigma = 1.0, Support = 0.4
         # getGaussianKernel(int ksize, sigma, ktype = CV_32F)
-        kernel = np.array([
-            [0.0038, 0.0150, 0.0238, 0.0150, 0.0038],
-            [0.0150, 0.0599, 0.0949, 0.0599, 0.0150],
-            [0.0238, 0.0949, 0.1503, 0.0949, 0.0238],
-            [0.0150, 0.0599, 0.0949, 0.0599, 0.0150],
-            [0.0038, 0.0150, 0.0238, 0.0150, 0.0038]], dtype = np.float32)
+        # kernel = np.array([
+        #     [0.0038, 0.0150, 0.0238, 0.0150, 0.0038],
+        #     [0.0150, 0.0599, 0.0949, 0.0599, 0.0150],
+        #     [0.0238, 0.0949, 0.1503, 0.0949, 0.0238],
+        #     [0.0150, 0.0599, 0.0949, 0.0599, 0.0150],
+        #     [0.0038, 0.0150, 0.0238, 0.0150, 0.0038]], dtype = np.float32)
         
-        smooth_map = cv2.filter2D(bin_map, -1, kernel)
-        return smooth_map
+        # smooth_map = cv2.filter2D(bin_map, -1, kernel)
+        # return smooth_map
     
     def compute_laplacian(self, smooth_map: np.ndarray) -> np.ndarray:
         # https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#gad78703e4c8fe703d479c1860d76429e6
@@ -126,16 +131,16 @@ class Frontier:
     
     def detect_zero_crossings(self, laplacian: np.ndarray) -> np.ndarray:
         zero_crossings = np.zeros_like(laplacian, dtype=np.uint8)
-        kernel = np.array([[1, -1], [-1, 1]], dtype=np.float32)
-        crossings_map = cv2.filter2D(laplacian, -1, kernel)
-        zero_crossings[np.abs(crossings_map) > 0] = 255
-        return zero_crossings
-        # for i in range(1, height - 1):
-        #     for j in range(1, width - 1):
-        #         # Zero-crossing detection condition
-        #         if (not (laplacian[i, j] * laplacian[i + 1, j] == 0)) or (not (laplacian[i, j] * laplacian[i, j + 1] == 0)):
-        #             zero_crossings[i, j] = 255  # Mark as edge
+        # kernel = np.array([[1, -1], [-1, 1]], dtype=np.float32)
+        # crossings_map = cv2.filter2D(laplacian, -1, kernel)
+        # zero_crossings[np.abs(crossings_map) > 0] = 255
         # return zero_crossings
+        for i in range(1, zero_crossings.shape[1]-1):
+            for j in range(1, zero_crossings.shape[0]-1):
+                # Zero-crossing detection condition
+                if (not (laplacian[i, j] * laplacian[i + 1, j] == 0)) or (not (laplacian[i, j] * laplacian[i, j + 1] == 0)):
+                    zero_crossings[i, j] = 255  # Mark as edge
+        return zero_crossings
     
     def create_frontiers(self, zero_crossings: np.ndarray) -> list[list[tuple]]:
         frontiers = []
@@ -208,6 +213,7 @@ class Frontier:
 
     def choose_centroid(self, zero_crossings: np.ndarray) -> tuple:
         frontiers = self.create_frontiers(zero_crossings)
+        self.publish_frontier(frontiers)
         if not frontiers:
             rospy.loginfo("No frontiers detected.")
             return None
@@ -311,8 +317,8 @@ class Frontier:
         # goal_position.header.stamp = rospy.Time.now()
 
         # grid indices to world coordinates
-        world_x = self.map_info.origin.position.x + centroid.x * self.map_info.resolution
-        world_y = self.map_info.origin.position.y + centroid.y * self.map_info.resolution
+        world_x = self.map_info.origin.position.x + centroid[0] * self.map_info.resolution
+        world_y = self.map_info.origin.position.y + centroid[1] * self.map_info.resolution
 
         centroid_point = Point(x = world_x, y = world_y, z = 0)
 
@@ -340,7 +346,10 @@ class Frontier:
             rospy.loginfo("Final map saved successfully.")
         except subprocess.CalledProcessError as e:
             rospy.logerr(f"Failed to save map: {e}")
-    
+
+    def publish_map(self, map):
+        pass
+
     def run(self):
         rospy.spin()
    
