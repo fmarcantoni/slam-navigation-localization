@@ -81,21 +81,30 @@ class Frontier:
         print("6/6 :::: Published Centroid")
     
     def map_preprocess(self, grid: np.ndarray) -> np.ndarray:
-        width, height = grid.shape
-        bin_map = np.zeros((width, height), dtype = np.uint8) #Empty binary map
-        
-        for i in range(grid.shape[0]):
-            for j in range(grid.shape[1]):
-                if grid[i, j] == 0:        # Free space
-                    bin_map[i, j] = 255  # Mark free space as 255
-                elif grid[i, j] == -1:      # Unknown space
-                    bin_map[i, j] = 127  # Mark unknown space as 127
-                elif grid[i, j] > 0:       # Occupied space
-                    bin_map[i, j] = 0    # Mark occupied space as 0
-                    
+        bin_map = np.full(grid.shape, 127, dtype=np.uint8)  # Default to unknown space
+        bin_map[grid == 0] = 255  # Free space
+        bin_map[grid > 0] = 0     # Occupied space
         return bin_map
-    
+        
+        # width, height = grid.shape
+        # bin_map = np.zeros((width, height), dtype = np.uint8) #Empty binary map
+        
+        # for i in range(grid.shape[0]):
+        #     for j in range(grid.shape[1]):
+        #         if grid[i, j] == 0:        # Free space
+        #             bin_map[i, j] = 255  # Mark free space as 255
+        #         elif grid[i, j] == -1:      # Unknown space
+        #             bin_map[i, j] = 127  # Mark unknown space as 127
+        #         elif grid[i, j] > 0:       # Occupied space
+        #             bin_map[i, j] = 0    # Mark occupied space as 0
+                    
+        # return bin_map
+
     def map_smooth(self, bin_map: np.ndarray) -> np.ndarray:
+        smooth_map = cv2.GaussianBlur(bin_map, (3, 3), 1.0)  # Kernel size = 3, Sigma = 1.0
+        return smooth_map
+        
+        
         # http://demofox.org/gauss.html
         # Sigma = 1.0, Support = 0.4
         # getGaussianKernel(int ksize, sigma, ktype = CV_32F)
@@ -116,27 +125,36 @@ class Frontier:
         return laplacian
     
     def detect_zero_crossings(self, laplacian: np.ndarray) -> np.ndarray:
-        width, height = laplacian.shape
-        zero_crossings = np.zeros((width, height), dtype=np.uint64)
-        
-        for i in range(1, height - 1):
-            for j in range(1, width - 1):
-                # Zero-crossing detection condition
-                if (not (laplacian[i, j] * laplacian[i + 1, j] == 0)) or (not (laplacian[i, j] * laplacian[i, j + 1] == 0)):
-                    zero_crossings[i, j] = 255  # Mark as edge
+        zero_crossings = np.zeros_like(laplacian, dtype=np.uint8)
+        kernel = np.array([[1, -1], [-1, 1]], dtype=np.float32)
+        crossings_map = cv2.filter2D(laplacian, -1, kernel)
+        zero_crossings[np.abs(crossings_map) > 0] = 255
         return zero_crossings
+        # for i in range(1, height - 1):
+        #     for j in range(1, width - 1):
+        #         # Zero-crossing detection condition
+        #         if (not (laplacian[i, j] * laplacian[i + 1, j] == 0)) or (not (laplacian[i, j] * laplacian[i, j + 1] == 0)):
+        #             zero_crossings[i, j] = 255  # Mark as edge
+        # return zero_crossings
     
     def create_frontiers(self, zero_crossings: np.ndarray) -> list[list[tuple]]:
         frontiers = []
-        width, height = zero_crossings.shape
-        visited = np.zeros((width, height), dtype=bool)
+        # width, height = zero_crossings.shape
+        # visited = np.zeros((width, height), dtype=bool)
+        visited = np.zeros_like(zero_crossings, dtype=bool)
+        
+        frontier_points = np.argwhere(zero_crossings == 255)
 
+        for i, j in frontier_points:
+            if not visited[i, j]:
+                frontier = self.bfs(i, j, zero_crossings, visited)
+                frontiers.append(frontier)
         # Iterate through the zero-crossing array and perform BFS to find frontiers
-        for i in range(zero_crossings.shape[0]):
-            for j in range(zero_crossings.shape[1]):
-                if zero_crossings[i, j] == 255 and not visited[i, j]:
-                    frontier = self.bfs(i, j, zero_crossings, visited)
-                    frontiers.append(frontier)        
+        # for i in range(zero_crossings.shape[0]):
+        #     for j in range(zero_crossings.shape[1]):
+        #         if zero_crossings[i, j] == 255 and not visited[i, j]:
+        #             frontier = self.bfs(i, j, zero_crossings, visited)
+        #             frontiers.append(frontier)        
         return frontiers
     
     def bfs(self, start_i, start_j, zero_crossings: np.ndarray, visited: np.ndarray) -> list[tuple]:
@@ -190,28 +208,46 @@ class Frontier:
 
     def choose_centroid(self, zero_crossings: np.ndarray) -> tuple:
         frontiers = self.create_frontiers(zero_crossings)
-        self.publish_frontier(frontiers)
-        # self.publish_frontier_markers(frontiers)
-        corrected_frontiers = sorted(frontiers, key=len)
+        if not frontiers:
+            rospy.loginfo("No frontiers detected.")
+            return None
+    
+        centroids = np.array([
+            [np.mean([p[0] for p in frontier]), np.mean([p[1] for p in frontier])] for frontier in frontiers])
         
-        sizes = []
-        for f in corrected_frontiers:
-            sizes.append(len(f))
-        
-        centroids = self.calculate_centroids(frontiers)
-        
-        distances = []
-        for c in centroids:
-            distances.append(math.sqrt((c.x - self.px) ** 2 + (c.y - self.py) ** 2))
-        
+        sizes = np.array([len(f) for f in frontiers])
+    
+        # Vectorized distance calculation
+        distances = np.linalg.norm(centroids - np.array([self.px, self.py]), axis=1)
+    
         alpha = 1
         beta = 3
-        heuristic = []
-        #gets costs, not yet normalized to max dist/cost
-        for h in range(len(centroids)):
-            heuristic.append(alpha * distances[h] - beta * sizes[h])
-        
+        heuristic = alpha * distances - beta * sizes
+    
         return centroids[np.argmin(heuristic)]
+        # frontiers = self.create_frontiers(zero_crossings)
+        # self.publish_frontier(frontiers)
+        # # self.publish_frontier_markers(frontiers)
+        # corrected_frontiers = sorted(frontiers, key=len)
+        
+        # sizes = []
+        # for f in corrected_frontiers:
+        #     sizes.append(len(f))
+        
+        # centroids = self.calculate_centroids(frontiers)
+        
+        # distances = []
+        # for c in centroids:
+        #     distances.append(math.sqrt((c.x - self.px) ** 2 + (c.y - self.py) ** 2))
+        
+        # alpha = 1
+        # beta = 3
+        # heuristic = []
+        # #gets costs, not yet normalized to max dist/cost
+        # for h in range(len(centroids)):
+        #     heuristic.append(alpha * distances[h] - beta * sizes[h])
+        
+        # return centroids[np.argmin(heuristic)]
 
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
         frontier_msg = GridCells()
