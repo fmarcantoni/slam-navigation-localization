@@ -58,17 +58,14 @@ class Frontier:
         # Step 1: Preprocess map
         grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
         binary_map = self.map_preprocess(grid)
-        print("1/6 :::: Preprocessed map")
         
         # Step 2: Gaussian smoothing
         smoothed = self.map_smooth(binary_map)
-        print("2/6 :::: Gaussian smoothing")
         
         # self.visualizationMap(smoothed)
 
         # Step 3: Compute Laplacian
         laplacian = self.compute_laplacian(smoothed)
-        print("3/6 :::: Computed Laplacian")
         
         # # Step 3.5: Morphological Closing
         # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, 3)
@@ -77,19 +74,14 @@ class Frontier:
         # Step 4: Detect zero crossings
         # edges = self.detect_zero_crossings(laplacian_closed)
         edges = self.detect_zero_crossings(binary_map)
-        print("4/6 :::: Detected zero crossings")
 
         # Step 4.1 Publish 0-crossing map
         # crossing_map = self.publish_map()
 
 
         # Step 5: Choose Centroid
-        chosen_centroid = self.choose_centroid(edges)
-        print("5/6 :::: Chose centroid to pursue")
+        self.choose_centroid(edges)
         
-        # Step 6: Publish Centroid
-        self.publish_centroid(chosen_centroid)
-        print("6/6 :::: Published Centroid")
     
     def map_preprocess(self, grid: np.ndarray) -> np.ndarray:
         bin_map = np.full(grid.shape, 100, dtype=np.uint8)  # Default to occupied space
@@ -207,12 +199,10 @@ class Frontier:
         for i, j in frontier_points:
             if not visited[i, j]:
                 frontier = self.bfs(i, j, zero_crossings, visited)
-                frontiers.append(frontier)
-
-        for frontier in frontiers:
-            if len(frontier) < 10:
-                frontiers.remove(frontier)
-
+                print(len(frontier))   
+                if len(frontier) > 5:
+                    frontiers.append(frontier)
+                             
 
         return frontiers
     
@@ -265,12 +255,12 @@ class Frontier:
             centroids.append(Point(x = centroid_x, y = centroid_y, z = 0))
         return centroids
 
-    def choose_centroid(self, zero_crossings: np.ndarray) -> tuple:
+    def choose_centroid(self, zero_crossings: np.ndarray):
         frontiers = self.create_frontiers(zero_crossings)
         self.publish_frontier(frontiers)
         if not frontiers:
             rospy.loginfo("No frontiers detected.")
-            return None
+            return
     
         centroids = np.array([
             [np.mean([p[0] for p in frontier]), np.mean([p[1] for p in frontier])] for frontier in frontiers])
@@ -283,8 +273,9 @@ class Frontier:
         alpha = 1
         beta = 3
         heuristic = alpha * distances - beta * sizes
-    
-        return centroids[np.argmin(heuristic)]
+        
+        # Step 6: Publish Centroid
+        self.publish_centroid(centroids[np.argmin(heuristic)])
 
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
         frontier_msg = GridCells()
