@@ -107,7 +107,7 @@ class Frontier:
         for i in range(1, height - 1):
             for j in range(1, width - 1):
                 # Zero-crossing detection condition
-                if laplacian[i, j] * laplacian[i + 1, j] < 0 or laplacian[i, j] * laplacian[i, j + 1] < 0:
+                if (not (laplacian[i, j] * laplacian[i + 1, j] == 0)) or (not (laplacian[i, j] * laplacian[i, j + 1] == 0)):
                     zero_crossings[i, j] = 255  # Mark as edge
         return zero_crossings
     
