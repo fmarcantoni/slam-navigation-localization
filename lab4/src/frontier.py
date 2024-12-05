@@ -17,7 +17,7 @@ from tf.transformations import euler_from_quaternion
 
 
 class Frontier:
-    def __init__(self) -> None:
+    def __init__(self) -> None:                 
         rospy.init_node("Frontier_Exp")
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
