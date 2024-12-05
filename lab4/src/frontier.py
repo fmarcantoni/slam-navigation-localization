@@ -21,7 +21,7 @@ class Frontier:
         rospy.init_node("Frontier_Exp")
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
-        self.centroid_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=10)
+        self.centroid_pub = rospy.Publisher("/move_base_simple/centroid_goal", PoseStamped, queue_size=10)
         self.frontier_viz = rospy.Publisher("/frontier", GridCells, queue_size=10)
         self.empty_viz = rospy.Publisher("/empty", GridCells, queue_size=10)
         self.occupied_viz = rospy.Publisher("/occupied", GridCells, queue_size=10)
