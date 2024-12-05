@@ -351,14 +351,19 @@ class PathPlanner:
 
         # gets path from dictionary
         path = []
-        current = truncated_goal
-        print("came from:")
-        print(came_from)
-        while current != truncated_start:
-            path.append(current)
-            current = came_from.get(current)
-            print("current")
-            print(current)
+        # current = truncated_goal
+        if current == truncated_goal:
+            # print("current : ", current)
+            # print("came from:")
+            # print(came_from)
+            # print("current_camefrom: ", came_from.get(current))
+            while current != truncated_start:
+                path.append(current)
+                current = came_from.get(current)
+                # print("current : ", current)
+                # print("truncated start : ", truncated_start)
+        else:
+            rospy.loginfo("could not find path to frontier")
         
         path.reverse()
 
@@ -426,6 +431,7 @@ class PathPlanner:
 
         path_message.poses = PathPlanner.path_to_poses(mapdata, path)
         self.actual_path_viz.publish(path_message)
+        rospy.loginfo("path published")
 
         return path_message
 
@@ -443,7 +449,7 @@ class PathPlanner:
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
-        cspacedata = self.calc_cspace(mapdata, 1)
+        cspacedata = self.calc_cspace(mapdata, 2)
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
