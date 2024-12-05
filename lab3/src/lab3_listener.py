@@ -18,7 +18,7 @@ class Lab3_Listener:
         """
         rospy.init_node('Lab3_Listener')
         rospy.Subscriber('/odom', Odometry, self.update_odometry)
-        rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.activate_service)
+        rospy.Subscriber('/move_base_simple/centroid_goal', PoseStamped, self.activate_service)
 
         # attributes
         Lab3_Listener.px = 0
