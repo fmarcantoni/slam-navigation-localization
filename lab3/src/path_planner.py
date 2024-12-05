@@ -179,10 +179,6 @@ class PathPlanner:
             else:
                 return False
 
-
-
-               
-
     @staticmethod
     def neighbors_of_4(mapdata: OccupancyGrid, p: tuple[int, int]) -> list[tuple[int, int]]:
         """
@@ -244,9 +240,55 @@ class PathPlanner:
             can_walk.append((x_coordinate - 1, y_coordinate - 1))
 
         return can_walk
+
+    @staticmethod
+    def calculate_direction(start: tuple[int, int], end: tuple[int, int]) -> tuple[int, int]:
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        return (dx, dy)
     
+    @staticmethod
+    def find_nearest_cspace(mapdata: OccupancyGrid, cell: tuple[int, int]) -> tuple[int, int]:
+        # Find the closest occupied cell in the C-space
+        closest = None
+        min_distance = float('inf')
+        
+        for i in range(mapdata.info.width):
+            for j in range(mapdata.info.height):
+                if mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j])] == 100:  # C-space cell
+                    distance = PathPlanner.euclidean_distance(cell, (i, j))
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest = (i, j)
+        return closest
+
+    @staticmethod
+    def penalty_for_cell_next_to_cspace(mapdata:OccupancyGrid, cell: tuple[int, int]) -> int:
+        """
+        A cell is walkable if all of these conditions are true:
+        1. It is within the boundaries of the grid;
+        2. It is free (not unknown, not occupied by an obstacle)
+        :param mapdata [OccupancyGrid] The map information.
+        :param p       [(int, int)]    The coordinate in the grid.
+        :return        [bool]          True if the cell is not walkable, or if it's next to cspace
+        """
+        nearest_cspace = PathPlanner.find_nearest_cspace(mapdata, cell)
+        distance = PathPlanner.euclidean_distance(cell, nearest_cspace)
+
+        print("distance: ")
+        print(distance)
+        # Define penalty based on distance: closer to C-space, higher penalty
+        if distance < 1:  # If within 1 unit of the C-space
+            return 1000  # Maximum penalty
+        elif distance < 2:  # If within 2 units of C-space
+            return 500  # Moderate penalty
+        else:
+            return 0  # No penalty if far from C-space
 
     
+
+
+
     
     @staticmethod
     def request_map() -> OccupancyGrid:
@@ -335,7 +377,17 @@ class PathPlanner:
                 break
 
             for next in PathPlanner.neighbors_of_8(mapdata, current):
-                new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next)
+                penalty = PathPlanner.penalty_for_cell_next_to_cspace(mapdata, next)  # This will return the varying penalty
+
+                if came_from[current] is not None:
+                    previous_direction = PathPlanner.calculate_direction(came_from[current], current)
+                    current_direction = PathPlanner.calculate_direction(current, next)
+                    if previous_direction != current_direction:
+                        penalty += 20 # add a small penalty when we have a change in direction
+
+                new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next) + penalty
+
+
                 if next not in cost_so_far or new_cost < cost_so_far[next]:
                     cost_so_far[next] = new_cost
                     priority = new_cost + PathPlanner.euclidean_distance(goal, next)
