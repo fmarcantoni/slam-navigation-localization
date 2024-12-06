@@ -26,5 +26,6 @@
 
     <!-- AMCL -->
     <node name="amcl" pkg="amcl" type="amcl" output="screen" />
+    <node name="localization_check" pkg="lab4" type="localization.py" />
  
 </launch>
