@@ -26,6 +26,7 @@ class PathPlanner:
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
         plan_path = rospy.Service("plan_path", GetPlan, self.plan_path, buff_size=65536)
+        plan_path_local = rospy.Service("plan_path_local", GetPlan, self.plan_path, buff_size=65536)
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         self.c_space = rospy.Publisher("path_planner/cspace", GridCells, queue_size=10)
@@ -501,7 +502,7 @@ class PathPlanner:
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
-        cspacedata = self.calc_cspace(mapdata, 5)
+        cspacedata = self.calc_cspace(mapdata, 1)
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
@@ -518,7 +519,7 @@ class PathPlanner:
         Runs the node until Ctrl-C is pressed.
         """
         map = self.request_map()
-        self.calc_cspace(map, 2)
+        self.calc_cspace(map, 1)
         
         rospy.spin()
 

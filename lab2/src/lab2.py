@@ -49,13 +49,11 @@ class Lab2:
         self.ready = False
 
     def readyCallback(self, msg:Bool):
-        ready = msg.data
+        self.ready = msg.data
 
     def local_move(self, msg:PoseStamped):
-        if ready:
-            go_to_Pure(msg)
-        else:
-            rotate(90, 1)
+        if not self.ready:
+            self.send_speed(0.05, 0.8)
 
     def send_speed(self, linear_speed: float, angular_speed: float):
         """
