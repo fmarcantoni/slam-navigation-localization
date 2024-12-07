@@ -185,8 +185,8 @@ class Frontier:
                     binary_map[i, j] < 100 and binary_map[i, j - 1] > 100):    
 
                     # if (binary_map[i, j] == 0):
-                    zero_crossings[j, i] = 255  # Mark as edge
-        return zero_crossings
+                    zero_crossings[i, j] = 255  # Mark as edge
+        return zero_crossings.T
     
     def create_frontiers(self, zero_crossings: np.ndarray) -> list[list[tuple]]:
         frontiers = []

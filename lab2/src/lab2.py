@@ -6,6 +6,7 @@ import angles
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped, PointStamped
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
 
 class Lab2:
@@ -30,6 +31,8 @@ class Lab2:
         #rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
         rospy.Subscriber("/path_planner/actual_path_viz", Path, self.go_to_destination)
+        rospy.Subscriber("/move_base_simple/localization_goal", PoseStamped, self.local_move)
+        rospy.Subscriber("/localization_ready", Bool, self.readyCallback)
 
         #init attributes
         self.px = 0
@@ -43,8 +46,16 @@ class Lab2:
         self.givenDestination = False
         self.oldTime = 0.0
         self.pathCoordinates = []
+        self.ready = False
 
+    def readyCallback(self, msg:Bool):
+        ready = msg.data
 
+    def local_move(self, msg:PoseStamped):
+        if ready:
+            go_to_Pure(msg)
+        else:
+            rotate(90, 1)
 
     def send_speed(self, linear_speed: float, angular_speed: float):
         """
