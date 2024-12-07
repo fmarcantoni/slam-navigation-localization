@@ -377,15 +377,15 @@ class PathPlanner:
                 break
 
             for next in PathPlanner.neighbors_of_8(mapdata, current):
-                penalty = PathPlanner.penalty_for_cell_next_to_cspace(mapdata, next)  # This will return the varying penalty
+                # penalty = PathPlanner.penalty_for_cell_next_to_cspace(mapdata, next)  # This will return the varying penalty
 
-                if came_from[current] is not None:
-                    previous_direction = PathPlanner.calculate_direction(came_from[current], current)
-                    current_direction = PathPlanner.calculate_direction(current, next)
-                    if previous_direction != current_direction:
-                        penalty += 20 # add a small penalty when we have a change in direction
+                # if came_from[current] is not None:
+                #     previous_direction = PathPlanner.calculate_direction(came_from[current], current)
+                #     current_direction = PathPlanner.calculate_direction(current, next)
+                #     if previous_direction != current_direction:
+                #         penalty += 20 # add a small penalty when we have a change in direction
 
-                new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next) + penalty
+                new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next) #+ penalty
 
 
                 if next not in cost_so_far or new_cost < cost_so_far[next]:
@@ -501,7 +501,7 @@ class PathPlanner:
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
-        cspacedata = self.calc_cspace(mapdata, 5)
+        cspacedata = self.calc_cspace(mapdata, 2)
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
