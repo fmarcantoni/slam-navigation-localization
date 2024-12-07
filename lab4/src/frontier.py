@@ -14,6 +14,7 @@ from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path, Odometry
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from tf.transformations import euler_from_quaternion
+from std_msgs.msg import Bool
 
 
 class Frontier:
@@ -21,13 +22,15 @@ class Frontier:
         rospy.init_node("Frontier_Exp")
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
+        self.arrived_to_goal = rospy.Subscriber("/arrived_at_centroid", Bool, self.update_centroid)
+
         self.centroid_pub = rospy.Publisher("/move_base_simple/centroid_goal", PoseStamped, queue_size=10)
         self.frontier_viz = rospy.Publisher("/frontier", GridCells, queue_size=10)
         self.empty_viz = rospy.Publisher("/empty", GridCells, queue_size=10)
         self.occupied_viz = rospy.Publisher("/occupied", GridCells, queue_size=10)
         self.unknown_viz = rospy.Publisher("/unknown", GridCells, queue_size=10)
-
         self.map_pub = rospy.Publisher("/map/Zeros", OccupancyGrid, queue_size=10)
+        
         # self.frontier_markers_viz = rospy.Publisher("/frontier_markers", MarkerArray, queue_size=10)
         self.px = 0
         self.py = 0
@@ -39,6 +42,8 @@ class Frontier:
         self.pthQ.y = 0
         self.pthQ.z = 1
         self.pthQ.w = 1
+
+        self.moved_to_centroid = True
     
     def update_odom(self, msg: Odometry) -> None:
         self.px = msg.pose.pose.position.x
@@ -77,10 +82,20 @@ class Frontier:
 
         # Step 4.1 Publish 0-crossing map
         # crossing_map = self.publish_map()
-
-
+        centroid = self.choose_centroid(edges)
         # Step 5: Choose Centroid
-        self.choose_centroid(edges)
+
+        print("centroid flag")
+        print(self.moved_to_centroid)
+        if(self.moved_to_centroid):
+            self.publish_centroid(centroid)
+            self.moved_to_centroid = False
+
+
+    def update_centroid(self, msg: Bool) -> None:
+        # https://www.netlib.org/utk/lsi/pcwLSI/text/node433.html
+        self.moved_to_centroid = msg.data
+       
         
     
     def map_preprocess(self, grid: np.ndarray) -> np.ndarray:
@@ -175,8 +190,8 @@ class Frontier:
         # crossings_map = cv2.filter2D(laplacian, -1, kernel)
         # zero_crossings[np.abs(crossings_map) > 0] = 255
         # return zero_crossings
-        for i in range(1, zero_crossings.shape[0]-1):
-            for j in range(1, zero_crossings.shape[1]-1):
+        for i in range(0, zero_crossings.shape[0]):
+            for j in range(0, zero_crossings.shape[1]):
                 # Zero-crossing detection condition
                 # if (not (laplacian[i, j] * laplacian[i + 1, j] == 0)) or (not (laplacian[i, j] * laplacian[i, j + 1] == 0)):
                 if (binary_map[i, j] > 100 and binary_map[i - 1, j] < 100 or
@@ -185,8 +200,9 @@ class Frontier:
                     binary_map[i, j] < 100 and binary_map[i, j - 1] > 100):    
 
                     # if (binary_map[i, j] == 0):
-                    zero_crossings[j, i] = 255  # Mark as edge
-        return zero_crossings
+                    zero_crossings[i, j] = 255  # Mark as edge
+
+        return zero_crossings.T
     
     def create_frontiers(self, zero_crossings: np.ndarray) -> list[list[tuple]]:
         frontiers = []
@@ -255,7 +271,7 @@ class Frontier:
             centroids.append(Point(x = centroid_x, y = centroid_y, z = 0))
         return centroids
 
-    def choose_centroid(self, zero_crossings: np.ndarray):
+    def choose_centroid(self, zero_crossings: np.ndarray) -> Point:
         frontiers = self.create_frontiers(zero_crossings)
         self.publish_frontier(frontiers)
         if not frontiers:
@@ -273,9 +289,8 @@ class Frontier:
         alpha = 1
         beta = 3
         heuristic = alpha * distances - beta * sizes
-        
-        # Step 6: Publish Centroid
-        self.publish_centroid(centroids[np.argmin(heuristic)])
+
+        return centroids[np.argmin(heuristic)]
 
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
         frontier_msg = GridCells()

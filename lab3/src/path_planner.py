@@ -9,8 +9,7 @@ import copy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
-
-
+import numpy as np
 
 class PathPlanner:
 
@@ -43,12 +42,6 @@ class PathPlanner:
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
-
-
-
-        
-
-
 
     @staticmethod
     def grid_to_index(mapdata: OccupancyGrid, p: tuple[int, int]) -> int:
@@ -242,6 +235,67 @@ class PathPlanner:
         return can_walk
 
     @staticmethod
+    def any_neighbors_of_4(mapdata: OccupancyGrid, p: tuple[int, int]) -> list[tuple[int, int]]:
+        """
+        Returns the walkable 4-neighbors cells of (x,y) in the occupancy grid.
+        :param mapdata [OccupancyGrid] The map information.
+        :param p       [(int, int)]    The coordinate in the grid.
+        :return        [[(int,int)]]   A list of walkable 4-neighbors.
+        """
+        ### REQUIRED CREDIT
+
+        can_walk = []
+
+        # truncates for ints
+        x_coordinate = int(p[0])
+        y_coordinate = int(p[1])
+
+    
+        can_walk.append((x_coordinate, y_coordinate + 1))
+    
+        can_walk.append((x_coordinate + 1, y_coordinate))
+    
+        can_walk.append((x_coordinate, y_coordinate - 1))
+    
+        can_walk.append((x_coordinate - 1, y_coordinate))
+
+        return can_walk
+
+    @staticmethod
+    def any_neighbors_of_8(mapdata: OccupancyGrid, p: tuple[int, int]) -> list[tuple[int, int]]:
+        """
+        Returns the walkable 8-neighbors cells of (x,y) in the occupancy grid.
+        :param mapdata [OccupancyGrid] The map information.
+        :param p       [(int, int)]    The coordinate in the grid.
+        :return        [[(int,int)]]   A list of walkable 8-neighbors.
+        """
+        ### REQUIRED CREDIT
+        
+        can_walk = []
+
+        # truncates for ints
+        x_coordinate = int(p[0])
+        y_coordinate = int(p[1])
+    
+        can_walk.append((x_coordinate, y_coordinate + 1))
+    
+        can_walk.append((x_coordinate + 1, y_coordinate))
+    
+        can_walk.append((x_coordinate, y_coordinate - 1))
+    
+        can_walk.append((x_coordinate - 1, y_coordinate))
+    
+        can_walk.append((x_coordinate + 1, y_coordinate + 1))
+    
+        can_walk.append((x_coordinate - 1, y_coordinate + 1))
+    
+        can_walk.append((x_coordinate + 1, y_coordinate - 1))
+    
+        can_walk.append((x_coordinate - 1, y_coordinate - 1))
+
+        return can_walk
+
+    @staticmethod
     def calculate_direction(start: tuple[int, int], end: tuple[int, int]) -> tuple[int, int]:
         dx = end[0] - start[0]
         dy = end[1] - start[1]
@@ -252,15 +306,48 @@ class PathPlanner:
         # Find the closest occupied cell in the C-space
         closest = None
         min_distance = float('inf')
-        
-        for i in range(mapdata.info.width):
-            for j in range(mapdata.info.height):
-                if mapdata.data[PathPlanner.grid_to_index(mapdata, [i, j])] == 100:  # C-space cell
-                    distance = PathPlanner.euclidean_distance(cell, (i, j))
-                    if distance < min_distance:
-                        min_distance = distance
-                        closest = (i, j)
+        neighbors = PathPlanner.any_neighbors_of_8(mapdata, cell)
+
+
+        for neighbor in neighbors:
+            if mapdata.data[PathPlanner.grid_to_index(mapdata, neighbor)] == 100:  # C-space cell
+                distance = PathPlanner.euclidean_distance(cell, neighbor)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest = neighbor
+            
+            # nested_neighbors = PathPlanner.any_neighbors_of_4(mapdata, neighbor)
+
+            # for nested_neighbor in nested_neighbors:
+            #     if mapdata.data[PathPlanner.grid_to_index(mapdata, nested_neighbors)] == 100:  # C-space cell
+            #         distance = PathPlanner.euclidean_distance(cell, nested_neighbors)
+            #         if distance < min_distance:
+            #             min_distance = distance
+            #             closest = nested_neighbors
+
         return closest
+
+    # @staticmethod
+    # def find_nearest_cspace(mapdata: OccupancyGrid, cell: tuple[int, int]) -> tuple[int, int]:
+
+    #     # Convert map data to a 2D array
+    #     map_array = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
+
+    #     # Get indices of all C-space cells (occupied cells with value 100)
+    #     cspace_indices = np.argwhere(map_array == 100)
+
+    #     if cspace_indices.size == 0:  # If no C-space cells exist
+    #         return None
+
+    #     # Build a k-d tree for fast nearest neighbor search
+    #     tree = cKDTree(cspace_indices)
+
+    #     # Query the nearest neighbor to the given cell
+    #     _, idx = tree.query(cell)
+    #     closest = tuple(cspace_indices[idx])
+
+    #     return closest
+
 
     @staticmethod
     def penalty_for_cell_next_to_cspace(mapdata:OccupancyGrid, cell: tuple[int, int]) -> int:
@@ -272,22 +359,20 @@ class PathPlanner:
         :param p       [(int, int)]    The coordinate in the grid.
         :return        [bool]          True if the cell is not walkable, or if it's next to cspace
         """
-        nearest_cspace = PathPlanner.find_nearest_cspace(mapdata, cell)
-        distance = PathPlanner.euclidean_distance(cell, nearest_cspace)
-
-        print("distance: ")
-        print(distance)
-        # Define penalty based on distance: closer to C-space, higher penalty
-        if distance < 1:  # If within 1 unit of the C-space
-            return 1000  # Maximum penalty
-        elif distance < 2:  # If within 2 units of C-space
-            return 500  # Moderate penalty
-        else:
-            return 0  # No penalty if far from C-space
-
     
+        nearest_cspace = PathPlanner.find_nearest_cspace(mapdata, cell)
+        if (nearest_cspace != None):
+            distance = PathPlanner.euclidean_distance(cell, nearest_cspace)
 
-
+            # Define penalty based on distance: closer to C-space, higher penalty
+            if distance <= 1:  # If within 1 unit of the C-space
+                return 1000  # Maximum penalty
+            elif distance <= 2:  # If within 2 units of C-space
+                return 500  # Moderate penalty
+            else:
+                return 0  # No penalty if far from C-space
+        else: 
+            return 0  # No penalty if far from C-space
 
     
     @staticmethod
@@ -338,13 +423,15 @@ class PathPlanner:
                                 edited_cells.append(cell)
 
         ## Create a GridCells message and publish it
+        
         grid_cells = GridCells()
         grid_cells.header.frame_id = "/map"
         grid_cells.cell_width = mapdata.info.resolution
         grid_cells.cell_height = mapdata.info.resolution
         grid_cells.cells = edited_cells
         self.c_space.publish(grid_cells)
-
+        print("publish cspace")
+        print(len(edited_cells))
         ## Return the C-space
         occupancy_grid = OccupancyGrid()
         occupancy_grid = mapdata
@@ -383,7 +470,7 @@ class PathPlanner:
                     previous_direction = PathPlanner.calculate_direction(came_from[current], current)
                     current_direction = PathPlanner.calculate_direction(current, next)
                     if previous_direction != current_direction:
-                        penalty += 20 # add a small penalty when we have a change in direction
+                        penalty += 0.01 # add a small penalty when we have a change in direction
 
                 new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next) + penalty
 
@@ -425,6 +512,7 @@ class PathPlanner:
         grid_cells.cell_height = mapdata.info.resolution
         grid_cells.cells = [PathPlanner.grid_to_world(mapdata, p) for p in path]
         self.path_viz.publish(grid_cells)
+        print("publish path")
 
         return path
 
@@ -501,7 +589,7 @@ class PathPlanner:
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
-        cspacedata = self.calc_cspace(mapdata, 5)
+        cspacedata = self.calc_cspace(mapdata, 1)
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
@@ -518,7 +606,7 @@ class PathPlanner:
         Runs the node until Ctrl-C is pressed.
         """
         map = self.request_map()
-        self.calc_cspace(map, 2)
+        self.calc_cspace(map, 1)
         
         rospy.spin()
 

@@ -7,6 +7,7 @@ from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped, PointStamped
 from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
+from std_msgs.msg import Bool
 
 class Lab2:
 
@@ -22,6 +23,7 @@ class Lab2:
         ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
         ### When a message is received, call self.update_odometry
         rospy.Subscriber('/odom', Odometry, self.update_odometry)
+        self.arrived_to_goal = rospy.Publisher("/arrived_at_centroid", Bool, queue_size=10)
         ## Create a publisher for the point that the robot is following in pure pursuit
         ## The topic is "/pointToFollow", the message type is pointStamped
         self.pointFollowing = rospy.Publisher("/pointToFollow", PointStamped, queue_size=10)
@@ -36,7 +38,7 @@ class Lab2:
         self.py = 0
         self.pth = 0
         self.lastFoundIndex = 0     #this is for finding intersections
-        self.lookAhead = 0.3
+        self.lookAhead = 0.1
         self.Kp_turn = 0.05
         self.Kp_lin = 0.8
 
@@ -538,6 +540,9 @@ class Lab2:
         finalPosition = path[-1]
         potentiallyFollow = finalPosition
         if self.distance_points(finalPosition, [self.px, self.py]) < self.lookAhead:
+            msg = Bool()
+            msg.data = True
+            self.arrived_to_goal.publish(msg)
             print("Has reached the destination!")
             print(finalPosition)
             self.send_speed(0.0, 0.0)
