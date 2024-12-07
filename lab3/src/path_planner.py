@@ -54,7 +54,7 @@ class PathPlanner:
         
         # calculates index based on grid coords
         index = mapdata.info.width * p[1] + p[0]
-        return index
+        return int(index)
 
 
 
@@ -369,6 +369,10 @@ class PathPlanner:
                 return 1000  # Maximum penalty
             elif distance <= 2:  # If within 2 units of C-space
                 return 500  # Moderate penalty
+            # elif distance <= 3: #if within 3 units of the C-space
+            #     return 500
+            # elif distance <= 4: #if within 4 units of the C-space
+            #     return 250
             else:
                 return 0  # No penalty if far from C-space
         else: 
@@ -453,6 +457,10 @@ class PathPlanner:
         came_from[truncated_start] = None
         cost_so_far[truncated_start] = 0
 
+        if mapdata.data[truncated_start[1] * mapdata.info.width + truncated_start[0]] == 100:
+            rospy.loginfo("Start position is an obstacle.")
+            return []
+
         # runs until goal is found or frontier is fully explored
         while not frontier.empty():
             grid_cells = GridCells()
@@ -460,7 +468,10 @@ class PathPlanner:
             grid_cells.cell_width = mapdata.info.resolution
             grid_cells.cell_height = mapdata.info.resolution
             current = frontier.get()
+            print("---------------- current: ", current)
+            print("---------------- truncated_goal: ", truncated_goal)
             if current == truncated_goal:
+                print("---------------------------------------------------reached goal")
                 break
 
             for next in PathPlanner.neighbors_of_8(mapdata, current):
@@ -502,7 +513,7 @@ class PathPlanner:
                 # print("current : ", current)
                 # print("truncated start : ", truncated_start)
         else:
-            rospy.loginfo("could not find path to frontier")
+            rospy.loginfo("-----------------------------------------------------------could not find path to frontier")
         
         path.reverse()
 
@@ -512,7 +523,7 @@ class PathPlanner:
         grid_cells.cell_height = mapdata.info.resolution
         grid_cells.cells = [PathPlanner.grid_to_world(mapdata, p) for p in path]
         self.path_viz.publish(grid_cells)
-        print("publish path")
+        rospy.loginfo("-----------------------------------------------------------------publish path")
 
         return path
 
@@ -597,6 +608,7 @@ class PathPlanner:
         ## Optimize waypoints
         # waypoints = PathPlanner.optimize_path(path)
         ## Return a Path message
+        rospy.loginfo("---------------------- plan_path")
         return self.path_to_message(mapdata, path)
 
 

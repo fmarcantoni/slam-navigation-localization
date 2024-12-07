@@ -16,6 +16,16 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool
 
+import sys
+import os
+
+# Add the path to lab3/src to the Python search path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../lab3/src')))
+
+from path_planner import PathPlanner
+
+# from lab3.src.path_planner import PathPlanner
+
 
 class Frontier:
     def __init__(self) -> None:                 
@@ -82,11 +92,10 @@ class Frontier:
 
         # Step 4.1 Publish 0-crossing map
         # crossing_map = self.publish_map()
-        centroid = self.choose_centroid(edges)
+        centroid = self.choose_centroid(edges, mapdata)
         # Step 5: Choose Centroid
 
-        print("centroid flag")
-        print(self.moved_to_centroid)
+        print("centroid flag: ", self.moved_to_centroid)
         if(self.moved_to_centroid):
             self.publish_centroid(centroid)
             self.moved_to_centroid = False
@@ -215,10 +224,11 @@ class Frontier:
         for i, j in frontier_points:
             if not visited[i, j]:
                 frontier = self.bfs(i, j, zero_crossings, visited)
-                print(len(frontier))   
+                # print(len(frontier))   
                 if len(frontier) > 5:
                     frontiers.append(frontier)
                              
+        rospy.loginfo("---------------------------------------frontiers created")
 
         return frontiers
     
@@ -271,7 +281,14 @@ class Frontier:
             centroids.append(Point(x = centroid_x, y = centroid_y, z = 0))
         return centroids
 
-    def choose_centroid(self, zero_crossings: np.ndarray) -> Point:
+    # def centroid_allowed(self, centroid: tuple[float, float], mapdata: OccupancyGrid) -> Bool:
+        
+    #     # if statement here to say if the centroid is in the c-space or in unknown space don't even add it
+    #     # or maybe what we could do is add it to other side of the list.
+    #     return PathPlanner.is_cell_walkable(mapdata, centroid)
+
+
+    def choose_centroid(self, zero_crossings: np.ndarray, mapdata: OccupancyGrid) -> Point:
         frontiers = self.create_frontiers(zero_crossings)
         self.publish_frontier(frontiers)
         if not frontiers:
@@ -285,12 +302,27 @@ class Frontier:
     
         # Vectorized distance calculation
         distances = np.linalg.norm(centroids - np.array([self.px, self.py]), axis=1)
-    
-        alpha = 1
-        beta = 3
-        heuristic = alpha * distances - beta * sizes
 
-        return centroids[np.argmin(heuristic)]
+        # Identify indices where the centroids are not walkable
+        walkable_indices = [
+            i for i, centroid in enumerate(centroids) if PathPlanner.is_cell_walkable(mapdata, centroid)
+        ]
+        
+        # Filter out centroids that are not walkable
+        centroids = centroids[walkable_indices]
+    
+        # for centroid in centroids:
+        #     if not PathPlanner.is_cell_walkable(mapdata, centroid):
+        #         centroids.remove(centroid)
+
+        alpha = 0.5
+        beta = 0.5
+        heuristic = alpha * distances - beta * sizes
+        rospy.loginfo("----------------------------------------------------------------------------centroids chosen")
+        if len(centroids) > 0:
+            return centroids[np.argmin(heuristic)]
+        else:
+            return None
 
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
         frontier_msg = GridCells()
@@ -333,6 +365,7 @@ class Frontier:
         goal_position_msg.pose.orientation = self.pthQ
 
         # Publish the GridCells message
+        rospy.loginfo("------------------------ centroids published")
         self.centroid_pub.publish(goal_position_msg)
 
     def save_final_map():
