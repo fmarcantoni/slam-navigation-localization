@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import rospy
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Vector3
 from std_msgs.msg import Bool
 from nav_msgs.msg import OccupancyGrid
 import yaml
@@ -19,6 +19,8 @@ class Localization:
         self.localization_ready_pub = rospy.Publisher('/localization_ready', Bool, queue_size=10)  # *****NEED LAB 2 TO SUBSCRIBE TO THIS*****
         self.final_point_pub = rospy.Publisher("/move_base_simple/localization_goal", PoseStamped, queue_size=10)
         self.final_point = PoseStamped()
+        self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
+
         self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab3/maps/simple_map.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab3/maps/simple_map.pgm')
 
     def amcl_callback(self, msg: PoseWithCovarianceStamped):
@@ -28,9 +30,11 @@ class Localization:
 
         position_threshold = 0.46  # meters
         orientation_threshold = 0.9  # radians
-        print(position_variance)
-        print()
-        print(orientation_threshold)
+        var_msg = Vector3()
+        var_msg.x = position_variance
+        var_msg.y = orientation_variance
+        var_msg.z = 0
+        self.variance_pub.publish(var_msg)
 
         if position_variance < position_threshold and orientation_variance < orientation_threshold:
             print("Close Enough")

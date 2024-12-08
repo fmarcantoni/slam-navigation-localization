@@ -5,7 +5,7 @@ import math
 import angles
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped, PointStamped
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Vector3
 from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
 
@@ -33,6 +33,7 @@ class Lab2:
         rospy.Subscriber("/path_planner/actual_path_viz", Path, self.go_to_destination)
         rospy.Subscriber("/move_base_simple/localization_goal", PoseStamped, self.local_move)
         rospy.Subscriber("/localization_ready", Bool, self.readyCallback)
+        rospy.Subscriber("/variance", Vector3, self.variance_callback)
 
         #init attributes
         self.px = 0
@@ -40,8 +41,11 @@ class Lab2:
         self.pth = 0
         self.lastFoundIndex = 0     #this is for finding intersections
         self.lookAhead = 0.3
-        self.Kp_turn = 0.005
-        self.Kp_lin = 0.1
+        self.Kp_turn = 0.02
+        self.Kp_lin = 0.5
+
+        self.pos_var = 0
+        self.or_var = 0
 
         self.givenDestination = False
         self.oldTime = 0.0
@@ -53,7 +57,11 @@ class Lab2:
 
     def local_move(self, msg:PoseStamped):
         if not self.ready:
-            self.send_speed(0.05, 0.8)
+            self.send_speed(0.00, 0.8)
+    
+    def variance_callback(self, msg: Vector3):
+        self.pos_var = msg.x
+        self.or_var = msg.y
 
     def send_speed(self, linear_speed: float, angular_speed: float):
         """
