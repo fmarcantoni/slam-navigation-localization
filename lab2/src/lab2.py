@@ -57,7 +57,7 @@ class Lab2:
 
     def local_move(self, msg:PoseStamped):
         if not self.ready:
-            self.send_speed(0.00, 0.8)
+            self.send_speed(0.00, 0.1)
     
     def variance_callback(self, msg: Vector3):
         self.pos_var = msg.x
