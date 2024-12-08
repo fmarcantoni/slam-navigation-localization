@@ -3,7 +3,8 @@
     <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
     
     <!-- Load Map From Phase 1 -->
-    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab3)/maps/simple_map.yaml"/>
+    <!-- <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab3)/maps/simple_map.yaml"/> -->
+    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab3)/maps/simple_map_scaled.yaml"/>
 
     <!-- TurtleBot3 -->
     <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
