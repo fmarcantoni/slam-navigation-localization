@@ -303,26 +303,31 @@ class Frontier:
         # Vectorized distance calculation
         distances = np.linalg.norm(centroids - np.array([self.px, self.py]), axis=1)
 
-        # Identify indices where the centroids are not walkable
-        walkable_indices = [
-            i for i, centroid in enumerate(centroids) if PathPlanner.is_cell_walkable(mapdata, centroid)
-        ]
-        
-        # Filter out centroids that are not walkable
-        centroids = centroids[walkable_indices]
-    
-        # for centroid in centroids:
-        #     if not PathPlanner.is_cell_walkable(mapdata, centroid):
-        #         centroids.remove(centroid)
+        walkable_centroids = []
+        walkable_distances = []  # Store the corresponding distances of the walkable centroids
+        walkable_sizes = []  # Store the corresponding sizes of the walkable centroids
+
+        for i, centroid in enumerate(centroids):
+            if PathPlanner.is_cell_walkable(mapdata, centroid):
+                walkable_centroids.append(centroid)
+                walkable_distances.append(distances[i])
+                walkable_sizes.append(sizes[i])
+
+        # Convert the filtered list back to a numpy array
+        centroids = np.array(walkable_centroids)
+        distances = np.array(walkable_distances)
+        sizes = np.array(walkable_sizes)
+
+        if len(centroids) == 0:
+            rospy.loginfo("No walkable centroids found.")
+            return None
 
         alpha = 0.5
         beta = 0.5
         heuristic = alpha * distances - beta * sizes
         rospy.loginfo("----------------------------------------------------------------------------centroids chosen")
-        if len(centroids) > 0:
-            return centroids[np.argmin(heuristic)]
-        else:
-            return None
+        return centroids[np.argmin(heuristic)]
+
 
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
         frontier_msg = GridCells()
