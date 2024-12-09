@@ -41,7 +41,7 @@ class Lab2:
         self.pth = 0
         self.lastFoundIndex = 0     #this is for finding intersections
         self.lookAhead = 0.3
-        self.Kp_turn = 0.02
+        self.Kp_turn = 0.04
         self.Kp_lin = 0.5
 
         self.pos_var = 0
@@ -57,7 +57,7 @@ class Lab2:
 
     def local_move(self, msg:PoseStamped):
         if not self.ready:
-            self.send_speed(0.00, 0.1)
+            self.send_speed(0.00, -0.1)
     
     def variance_callback(self, msg: Vector3):
         self.pos_var = msg.x

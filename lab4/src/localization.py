@@ -21,15 +21,15 @@ class Localization:
         self.final_point = PoseStamped()
         self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
 
-        self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/practice_map.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/practice_map.pgm')
+        self.map = self.load_yaml_map('$(find lab4)/maps/practice_map.yaml', '$(find lab4)/maps/practice_map.pgm')
 
     def amcl_callback(self, msg: PoseWithCovarianceStamped):
         covariance = msg.pose.covariance
         position_variance = covariance[0] + covariance[7]
         orientation_variance = covariance[35]
 
-        position_threshold = 0.03  # meters
-        orientation_threshold = 0.05 # radians
+        position_threshold = 0.015  # meters
+        orientation_threshold = 0.03 # radians
         var_msg = Vector3()
         var_msg.x = position_variance
         var_msg.y = orientation_variance

@@ -502,7 +502,7 @@ class PathPlanner:
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
-        cspacedata = self.calc_cspace(mapdata, 1)
+        cspacedata = self.calc_cspace(mapdata, 2)
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
@@ -519,7 +519,7 @@ class PathPlanner:
         Runs the node until Ctrl-C is pressed.
         """
         map = self.request_map()
-        self.calc_cspace(map, 1)
+        self.calc_cspace(map, 2)
         
         rospy.spin()
 
