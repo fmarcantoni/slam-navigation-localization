@@ -308,7 +308,6 @@ class PathPlanner:
         min_distance = float('inf')
         neighbors = PathPlanner.any_neighbors_of_8(mapdata, cell)
 
-
         for neighbor in neighbors:
             if mapdata.data[PathPlanner.grid_to_index(mapdata, neighbor)] == 100:  # C-space cell
                 distance = PathPlanner.euclidean_distance(cell, neighbor)
@@ -316,38 +315,18 @@ class PathPlanner:
                     min_distance = distance
                     closest = neighbor
             
-            # nested_neighbors = PathPlanner.any_neighbors_of_4(mapdata, neighbor)
+            if closest == None:
+                
+                nested_neighbors = PathPlanner.any_neighbors_of_8(mapdata, neighbor)
 
-            # for nested_neighbor in nested_neighbors:
-            #     if mapdata.data[PathPlanner.grid_to_index(mapdata, nested_neighbors)] == 100:  # C-space cell
-            #         distance = PathPlanner.euclidean_distance(cell, nested_neighbors)
-            #         if distance < min_distance:
-            #             min_distance = distance
-            #             closest = nested_neighbors
+                for nested_neighbor in nested_neighbors:
+                    if mapdata.data[PathPlanner.grid_to_index(mapdata, nested_neighbor)] == 100:  # C-space cell
+                        distance = PathPlanner.euclidean_distance(cell, nested_neighbor)
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest = nested_neighbor
 
         return closest
-
-    # @staticmethod
-    # def find_nearest_cspace(mapdata: OccupancyGrid, cell: tuple[int, int]) -> tuple[int, int]:
-
-    #     # Convert map data to a 2D array
-    #     map_array = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
-
-    #     # Get indices of all C-space cells (occupied cells with value 100)
-    #     cspace_indices = np.argwhere(map_array == 100)
-
-    #     if cspace_indices.size == 0:  # If no C-space cells exist
-    #         return None
-
-    #     # Build a k-d tree for fast nearest neighbor search
-    #     tree = cKDTree(cspace_indices)
-
-    #     # Query the nearest neighbor to the given cell
-    #     _, idx = tree.query(cell)
-    #     closest = tuple(cspace_indices[idx])
-
-    #     return closest
-
 
     @staticmethod
     def penalty_for_cell_next_to_cspace(mapdata:OccupancyGrid, cell: tuple[int, int]) -> int:
@@ -366,13 +345,13 @@ class PathPlanner:
 
             # Define penalty based on distance: closer to C-space, higher penalty
             if distance <= 1:  # If within 1 unit of the C-space
-                return 1000  # Maximum penalty
+                return 3000  # Maximum penalty
             elif distance <= 2:  # If within 2 units of C-space
-                return 500  # Moderate penalty
-            # elif distance <= 3: #if within 3 units of the C-space
-            #     return 500
-            # elif distance <= 4: #if within 4 units of the C-space
-            #     return 250
+                return 2000  # Moderate penalty
+            elif distance <= 3: #if within 3 units of the C-space
+                return 1000
+            elif distance <= 4: #if within 4 units of the C-space
+                return 500
             else:
                 return 0  # No penalty if far from C-space
         else: 
