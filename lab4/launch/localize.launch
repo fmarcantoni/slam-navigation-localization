@@ -2,8 +2,8 @@
     
     <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
     
-    <!-- Load Map From Phase 1 -->
-    <!-- <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab3)/maps/simple_map_scaled.yaml"/> -->
+    <!-- Load Map From Phase 1 
+        REMEMBER TO CHANGE FILE PATH IN LOCALIZATION.PY ALSO-->
     <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/practice_map.yaml"/>
 
     <!-- TurtleBot3 -->

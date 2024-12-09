@@ -1,13 +1,9 @@
 <launch>
-    <!-- mapping. We don't need mapserver if gmapping is running -->
-    <!-- <include file="$(find turtlebot3_slam)/launch/turtlebot3_slam.launch" /> -->
+    <!-- TO USE THIS TO COLLECT MAP, RUN WITH TELEOP, THEN USE MAPSAVER -->
      
     <!-- Arguments -->
     <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
     <param name="tb3_model" value="$(arg model)"/>
-
-
-    <node name="transform" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 /map /odom 100" />
 
     <!-- Gmapping -->
     <node pkg="gmapping" type="slam_gmapping" name="turtlebot3_slam_gmapping" output="screen">
@@ -20,7 +16,7 @@
 
     <!-- TurtleBot3 -->
     <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
-        <!-- <arg name="model" value="$(arg model)"/> -->
+        <arg name="model" value="$(arg model)"/>
     </include>
 
 

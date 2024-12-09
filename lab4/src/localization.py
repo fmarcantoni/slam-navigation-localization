@@ -21,7 +21,7 @@ class Localization:
         self.final_point = PoseStamped()
         self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
 
-        self.map = self.load_yaml_map('$(find lab4)/maps/practice_map.yaml', '$(find lab4)/maps/practice_map.pgm')
+        self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/mini_map.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/mini_map.pgm')
 
     def amcl_callback(self, msg: PoseWithCovarianceStamped):
         covariance = msg.pose.covariance

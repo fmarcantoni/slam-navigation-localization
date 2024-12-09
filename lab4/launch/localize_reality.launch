@@ -1,10 +1,18 @@
 <launch>
     
+    <!-- ******************
+    IF MAP DOES NOT SHOW UP IN TF TREE
+    MAKE SURE TIME OF LAB COMPUTER AND ROBOT ARE THE SAME
+    1) rosparam get /use_sim_time
+    2) rosparam set /use_sim_time false
+    3) date
+    ****************** -->
+
     <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
     
-    <!-- Load Map From Phase 1 -->
-    <!-- <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab3)/maps/simple_map_scaled.yaml"/> -->
-    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/practice_map.yaml"/>
+    <!-- Load Map From Phase 1 
+        REMEMBER TO CHANGE FILE PATH IN LOCALIZATION.PY ALSO-->
+    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/mini_map.yaml"/>
 
     <!-- TurtleBot3 -->
     <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
@@ -56,6 +64,9 @@
         <param name="update_min_d" value="0.05"/>
         <param name="update_min_a" value="0.1"/>
         <param name="odom_frame_id" value="odom"/>
+        <param name="base_frame_id" value="base_footprint" />
+        <param name="map_frame_id" value="map" />
+        <param name="scan_topic" value="/scan" />
         <param name="resample_interval" value="1"/>
         <param name="transform_tolerance" value="0.1"/>
         <param name="recovery_alpha_slow" value="0.005"/>
