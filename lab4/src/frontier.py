@@ -146,7 +146,7 @@ class Frontier:
         self.empty_viz.publish(empty_msg)
 
     def map_smooth(self, bin_map: np.ndarray) -> np.ndarray:
-        smooth_map = cv2.GaussianBlur(bin_map, (3, 3), 0.001)  # Kernel size = 3, Sigma = 1.0
+        smooth_map = cv2.GaussianBlur(bin_map, (3, 3), 0.011)  # Kernel size = 3, Sigma = 1.0
         return smooth_map
         
         

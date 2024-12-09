@@ -54,10 +54,13 @@ class Lab2:
 
     def readyCallback(self, msg:Bool):
         self.ready = msg.data
+        if self.ready:
+            self.send_speed(0,0)
 
     def local_move(self, msg:PoseStamped):
         if not self.ready:
-            self.send_speed(0.00, -0.1)
+            rospy.loginfo("ROTATING")
+            self.rotate(10, 0.4)
     
     def variance_callback(self, msg: Vector3):
         self.pos_var = msg.x
@@ -307,12 +310,12 @@ class Lab2:
         """
 
     def go_to_destination(self, msg: Path):
-        print("New Destination Received")
+        # print("New Destination Received")
         
 
         coordinatesInPath = []
         # print all the coordinates of the path
-        print("(x, y): ")
+        # print("(x, y): ")
         for pose in msg.poses:
             print(pose.pose.position.x, ", ", pose.pose.position.y)
             coordinatesInPath.append([pose.pose.position.x, pose.pose.position.y])

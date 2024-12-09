@@ -12,7 +12,7 @@
     
     <!-- Load Map From Phase 1 
         REMEMBER TO CHANGE FILE PATH IN LOCALIZATION.PY ALSO-->
-    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/mini_map.yaml"/>
+    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/larger_mini.yaml"/>
 
     <!-- TurtleBot3 -->
     <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
@@ -29,10 +29,10 @@
     <node name="lab3_listener" pkg="lab3" type="lab3_listener.py" />
  
     <!-- Pure Pursuit Node -->
-    <node name="lab2" pkg="lab2" type="lab2.py" />
+    <node name="lab2" pkg="lab2" type="lab2.py" output="screen"/>
 
     <!-- Localization Node -->
-    <node name="localization_check" pkg="lab4" type="localization.py" />
+    <node name="localization_check" pkg="lab4" type="localization.py" output="screen" />
 
     <!-- AMCL -->
     <node pkg="amcl" type="amcl" name="amcl" output="screen">
@@ -41,8 +41,8 @@
         <param name="odom_alpha5" value="0.1"/>
         <param name="gui_publish_rate" value="10.0"/>
         <param name="laser_max_beams" value="70"/>
-        <param name="min_particles" value="1000"/>
-        <param name="max_particles" value="5000"/>
+        <param name="min_particles" value="500"/>
+        <param name="max_particles" value="2000"/>
         <param name="kld_err" value="0.01"/>
         <param name="kld_z" value="0.99"/>
         <param name="odom_alpha1" value="0.005"/>

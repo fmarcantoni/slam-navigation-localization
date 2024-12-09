@@ -12,8 +12,8 @@ class Localization:
         """
         Class constructor
         """
-        rospy.init_node('localization_check')
-
+        rospy.init_node('localization_check', log_level=rospy.INFO)
+        rospy.loginfo("INIT CHECK")
         rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped, self.amcl_callback)
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.final_goal_callback)
         self.localization_ready_pub = rospy.Publisher('/localization_ready', Bool, queue_size=10)  # *****NEED LAB 2 TO SUBSCRIBE TO THIS*****
@@ -21,32 +21,38 @@ class Localization:
         self.final_point = PoseStamped()
         self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
 
-        self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/mini_map.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/mini_map.pgm')
+        self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini.pgm')
+        rospy.sleep(1)
+
 
     def amcl_callback(self, msg: PoseWithCovarianceStamped):
+        rospy.loginfo("AMCL Callback Responding")
         covariance = msg.pose.covariance
         position_variance = covariance[0] + covariance[7]
         orientation_variance = covariance[35]
 
-        position_threshold = 0.015  # meters
-        orientation_threshold = 0.03 # radians
+        position_threshold = 0.01  # meters
+        orientation_threshold = 0.02# radians
         var_msg = Vector3()
         var_msg.x = position_variance
         var_msg.y = orientation_variance
         var_msg.z = 0
         self.variance_pub.publish(var_msg)
+        rospy.loginfo(f"Position Variance: {position_variance}, Orientation Variance: {orientation_variance}")
 
         if position_variance < position_threshold and orientation_variance < orientation_threshold:
-            print("Close Enough")
+            rospy.loginfo("Localization is ready, publishing True.")
             msg = Bool()
             msg.data = True
             self.localization_ready_pub.publish(msg)
         else:
+            rospy.loginfo("Localization is not ready, publishing False.")
             msg = Bool()
             msg.data = False
             self.localization_ready_pub.publish(msg)
 
     def final_goal_callback(self, msg:PoseStamped):
+        rospy.loginfo("Sending Location")
         self.final_point = msg
         self.final_point_pub.publish(self.final_point)
 
@@ -59,7 +65,7 @@ class Localization:
         # making message
         loaded_map = OccupancyGrid()
         loaded_map.header.frame_id = frame_id
-        loaded_map.info.resolution = map_data.get('resolution', 0.05) #0.05 = Default
+        loaded_map.info.resolution = map_data.get('resolution', 0.025) #0.025 = Default
         loaded_map.info.origin.position.x = map_data['origin'][0]
         loaded_map.info.origin.position.y = map_data['origin'][1]
         loaded_map.info.origin.position.z = map_data['origin'][2]
