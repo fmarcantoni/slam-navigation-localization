@@ -44,6 +44,9 @@ class Frontier:
         self.unknown_viz = rospy.Publisher("/unknown", GridCells, queue_size=10)
         self.map_pub = rospy.Publisher("/map/Zeros", OccupancyGrid, queue_size=10)
         
+        #make a server proxy
+        self.get_path = rospy.ServiceProxy("/plan_path", GetPlan)
+
         # self.frontier_markers_viz = rospy.Publisher("/frontier_markers", MarkerArray, queue_size=10)
         self.px = 0
         self.py = 0
@@ -57,15 +60,6 @@ class Frontier:
         self.pthQ.w = 1
 
         self.moved_to_centroid = True
-    
-    # def update_frontiers(self, msg: Twist) -> None:
-    #     #if we are not we update the frontiers
-    #     if (msg.linear.x == 0 and msg.linear.y == 0 and msg.linear.z == 0 and 
-    #         msg.angular.x == 0 and msg.angular.y == 0 and msg.angular.z == 0):
-    #             #update the frontiers
-    #             #then we check if we have any more frontiers, if we do not we save the map
-
-
 
     def update_odom(self, msg: Odometry) -> None:
         self.px = msg.pose.pose.position.x
@@ -104,37 +98,22 @@ class Frontier:
 
         # Step 4.1 Publish 0-crossing map
         # crossing_map = self.publish_map()
-        centroid = self.choose_centroid(edges, mapdata)
-        # Step 5: Choose Centroid
+        frontier_points = self.create_frontiers(edges)
+        chosen_point = self.choose_frontier_point(frontier_points, mapdata)
+        
+        chosen_Point = Point()
+        chosen_Point.x = chosen_point[0]
+        chosen_Point.y = chosen_point[1]
+        chosen_Point.z = 0
+        
+        self.publish_centroid(chosen_Point)
 
-        print("centroid flag: ", self.moved_to_centroid)
-        #if(self.moved_to_centroid and (int(centroid[0]) != 0 and int(centroid[1]) != 0)):
-        if(self.moved_to_centroid and centroid is not None):
-            self.publish_centroid(centroid)
-            self.moved_to_centroid = False
-
-
-    # def check_for_frontiers(self, mapdata: OccupancyGrid, bin_map: np.ndarray) -> Bool:
-    #     if ()
-    #     edges = self.detect_zero_crossings(bin_map)
-
-    #     centroid = self.choose_centroid(edges, mapdata)
-
-    #     print("centroid flag: ", self.moved_to_centroid)
-    #     if(self.moved_to_centroid and centroid is not None):
-    #         self.publish_centroid(centroid)
-    #         self.moved_to_centroid = False
-
-
-    #     if(centroid is None and )
 
 
     def update_centroid(self, msg: Bool) -> None:
         # https://www.netlib.org/utk/lsi/pcwLSI/text/node433.html
         self.moved_to_centroid = msg.data
-       
         
-    
     def map_preprocess(self, grid: np.ndarray) -> np.ndarray:
         bin_map = np.full(grid.shape, 100, dtype=np.uint8)  # Default to occupied space
         bin_map[grid == 0] = 255  # Free space
@@ -257,9 +236,56 @@ class Frontier:
                     frontiers.append(frontier)
                              
         rospy.loginfo("---------------------------------------frontiers created")
+        
+        self.publish_frontier(frontiers)
 
-        return frontiers
+        frontier_points = []
+        
+        # get all the froniter points and put them on a list of tuples
+        for frontier in frontiers:
+            for point in frontier:
+                frontier_points.append(point)
+            
+        return frontier_points
     
+    def choose_frontier_point(self, frontier_points: list[tuple[int, int]], mapdata: OccupancyGrid) -> tuple[int, int]:
+        
+        distances_to_frontier_points = []
+
+        for frontier_point in frontier_points:
+            #appends euclidean distance of position-point to distances_to_frontier_points list
+            distances_to_frontier_points.append(PathPlanner.euclidean_distance([self.px, self.py], [frontier_point[0], frontier_point[1]]))
+        
+        # index of point of furthest distance
+        index = distances_to_frontier_points.index(max(distances_to_frontier_points))
+
+        # get the point with that index
+        point_chosen = frontier_points[index]
+
+        beginningPoint = PoseStamped()
+        goalPoint = PoseStamped()
+        beginningPoint.pose.position.x = self.px
+        beginningPoint.pose.position.y = self.py
+        beginningPoint.pose.position.z = 0
+        beginningPoint.pose.orientation = self.pthQ
+
+        goalPoint.pose.position.x = point_chosen[0]
+        goalPoint.pose.position.y = point_chosen[1]
+        goalPoint.pose.position.z = 0
+        goalPoint.pose.orientation = self.pthQ
+
+        if self.get_path(beginningPoint, goalPoint, 69):
+        # if PathPlanner.is_cell_walkable(mapdata, point_chosen):
+            return point_chosen
+        else:
+            rospy.loginfo("----------------------PATH COULD NOT BE CREATED TO THAT POINT, CHOSE A DIFFERENT ONE----------------------")
+
+            #remove that point because it is not walkable
+            frontier_points.pop(index)
+
+            #recursisize the function
+            return self.choose_frontier_point(frontier_points, mapdata)
+
     def bfs(self, start_i, start_j, zero_crossings: np.ndarray, visited: np.ndarray) -> list[tuple]:
         frontier = []
         search_queue = deque([(start_i, start_j)])
@@ -308,65 +334,6 @@ class Frontier:
             
             centroids.append(Point(x = centroid_x, y = centroid_y, z = 0))
         return centroids
-
-
-    # def calculate_centroids(self, frontier_list: list[list[tuple]], grid: np.ndarray) -> list[tuple]:
-    #     centroids = []
-        
-    #     if len(frontier_list) == 0:
-    #         rospy.loginfo("No more frontiers detected.")
-    #         self.save_final_map()
-
-    #     # Function to check if a cell is walkable (0 means free, 1 means obstacle)
-    #     def is_walkable(x, y):
-    #         rows, cols = grid.shape
-    #         if 0 <= x < rows and 0 <= y < cols:
-    #             return grid[x, y] == 0  # True if walkable, False if obstacle
-    #         return False
-
-    #     # Function to find the nearest walkable cell in the known space
-    #     def find_nearest_walkable_cell(x, y):
-    #         # Perform a BFS or other strategy to find the nearest walkable cell
-    #         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Cardinal directions
-    #         queue = deque([(x, y)])
-    #         visited = set()
-    #         visited.add((x, y))
-
-    #         while queue:
-    #             cx, cy = queue.popleft()
-    #             # Check if the current cell is walkable
-    #             if is_walkable(cx, cy):
-    #                 return cx, cy
-                
-    #             # Add neighboring cells to the queue
-    #             for dx, dy in directions:
-    #                 nx, ny = cx + dx, cy + dy
-    #                 if (nx, ny) not in visited:
-    #                     queue.append((nx, ny))
-    #                     visited.add((nx, ny))
-
-    #         return x, y  # Return the original position if no walkable cell is found (shouldn't happen)
-
-    #     for frontier in frontier_list:
-    #         # Calculate the centroid by averaging the x and y coordinates of the frontier points
-    #         x_list = []
-    #         y_list = []
-
-    #         # Extract x and y coordinates separately
-    #         for point in frontier:
-    #             x_list.append(point[0])
-    #             y_list.append(point[1])
-
-    #         centroid_x = np.mean(x_list)
-    #         centroid_y = np.mean(y_list)
-
-    #         # Find the nearest walkable cell in the known walkable space in front of the frontier
-    #         walkable_x, walkable_y = find_nearest_walkable_cell(int(centroid_x), int(centroid_y))
-
-    #         # Append the walkable centroid as a Point object
-    #         centroids.append(Point(x=walkable_x, y=walkable_y, z=0))
-
-    #     return centroids
 
     def closest_walkable_cell(self, grid: np.ndarray, start: tuple[int, int], tolerance: int) -> tuple[int, int]:
         """
@@ -426,7 +393,6 @@ class Frontier:
         # Return the best cell found
         return best_cell
 
-
     def choose_centroid(self, zero_crossings: np.ndarray, mapdata: OccupancyGrid) -> Point:
         frontiers = self.create_frontiers(zero_crossings)
         self.publish_frontier(frontiers)
@@ -474,7 +440,7 @@ class Frontier:
 
                 new_centroid = self.closest_walkable_cell(zero_crossings, centroid_truncated, 0.25)
                 
-                if new_centroid is not None and new_centroid is not (0, 0):
+                if new_centroid != None and new_centroid != (0, 0):
                     # Update centroid and calculate its distance and size
                     walkable_centroids.append(new_centroid)
                     new_distance = np.linalg.norm(np.array(new_centroid) - np.array([self.px, self.py]))
@@ -501,7 +467,6 @@ class Frontier:
         rospy.loginfo("----------------------------------------------------------------------------centroids chosen")
         return centroids[np.argmin(heuristic)]
 
-
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
         frontier_msg = GridCells()
         frontier_msg.header.frame_id = "map"
@@ -513,7 +478,8 @@ class Frontier:
         compiled_frontier = []
         
         # for point_in_frontier in range(len(frontier)):
-    
+        
+        
         for frontier in frontiers:
             for point_in_frontier in frontier:
                 world_x = self.map_info.origin.position.x + point_in_frontier[0] * self.map_info.resolution
@@ -524,15 +490,14 @@ class Frontier:
         frontier_msg.cells = compiled_frontier
         self.frontier_viz.publish(frontier_msg)
 
-
     def publish_centroid(self, centroid: Point) -> None:
         goal_position_msg = PoseStamped()
         # goal_position.header = rospy.Time.now()
         # goal_position.header.stamp = rospy.Time.now()
 
         # grid indices to world coordinates
-        world_x = self.map_info.origin.position.x + centroid[0] * self.map_info.resolution
-        world_y = self.map_info.origin.position.y + centroid[1] * self.map_info.resolution
+        world_x = self.map_info.origin.position.x + centroid.x * self.map_info.resolution
+        world_y = self.map_info.origin.position.y + centroid.y * self.map_info.resolution
 
         centroid_point = Point(x = world_x, y = world_y, z = 0)
 
