@@ -10,6 +10,8 @@ from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
 import numpy as np
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 
 class PathPlanner:
 
@@ -35,6 +37,10 @@ class PathPlanner:
         self.heuristic = rospy.Publisher("path_planner/heuristic", GridCells, queue_size=10)
         self.path_viz = rospy.Publisher("path_planner/viz", GridCells, queue_size=10)
         self.actual_path_viz = rospy.Publisher("path_planner/actual_path_viz", Path, queue_size=10)
+
+
+        self.are_we_moving = rospy.Publisher('/are_we_moving', Twist, queue_size=10)
+        self.arrived_to_goal = rospy.Publisher("/arrived_at_centroid", Bool, queue_size=10)
 
 
         ## Initialize the request counter
@@ -301,32 +307,111 @@ class PathPlanner:
         dy = end[1] - start[1]
         return (dx, dy)
     
+
     @staticmethod
-    def find_nearest_cspace(mapdata: OccupancyGrid, cell: tuple[int, int]) -> tuple[int, int]:
-        # Find the closest occupied cell in the C-space
-        closest = None
-        min_distance = float('inf')
-        neighbors = PathPlanner.any_neighbors_of_8(mapdata, cell)
+    def find_closest_walkable_cell(mapdata: OccupancyGrid, position: tuple[int, int]) -> tuple[int, int]:
+        """
+        Finds the closest free and walkable cell to the given position.
 
-        for neighbor in neighbors:
-            if mapdata.data[PathPlanner.grid_to_index(mapdata, neighbor)] == 100:  # C-space cell
-                distance = PathPlanner.euclidean_distance(cell, neighbor)
-                if distance < min_distance:
-                    min_distance = distance
-                    closest = neighbor
+        :param mapdata: [OccupancyGrid] The map data.
+        :param position: [tuple[int, int]] The starting or goal position.
+        :return: [tuple[int, int]] The closest walkable cell or None if not found.
+        """
+        width = mapdata.info.width
+        height = mapdata.info.height
+
+        # Queue for BFS
+        queue = [position]
+        visited = set()
+        visited.add(position)
+
+        while queue:
+            current = queue.pop(0)
+            x, y = current
+
+            # Check if the current cell is free (not an obstacle, not in C-space)
+            if (
+                0 <= x < width and
+                0 <= y < height and
+                mapdata.data[PathPlanner.grid_to_index(mapdata, current)] == 0
+            ):
+                return current
+
+            # Explore neighbors (walkable or not)
+            neighbors = PathPlanner.any_neighbors_of_8(mapdata, current)  # Use a method that returns all 8 neighbors
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        # Return None if no walkable cell is found
+        return None
+
+    @staticmethod
+    def find_closest_cspace_cell(mapdata: OccupancyGrid, position: tuple[int, int]) -> tuple[int, int]:
+        """
+        Finds the closest free and walkable cell to the given position.
+
+        :param mapdata: [OccupancyGrid] The map data.
+        :param position: [tuple[int, int]] The starting or goal position.
+        :return: [tuple[int, int]] The closest walkable cell or None if not found.
+        """
+        width = mapdata.info.width
+        height = mapdata.info.height
+
+        # Queue for BFS
+        queue = [position]
+        visited = set()
+        visited.add(position)
+
+        while queue:
+            current = queue.pop(0)
+            x, y = current
+
+            # Check if the current cell is free (not an obstacle, not in C-space)
+            if (
+                0 <= x < width and
+                0 <= y < height and
+                mapdata.data[PathPlanner.grid_to_index(mapdata, current)] == 100
+            ):
+                return current
+
+            # Explore neighbors (walkable or not)
+            neighbors = PathPlanner.any_neighbors_of_8(mapdata, current)  # Use a method that returns all 8 neighbors
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        # Return None if no walkable cell is found
+        return None
+
+    # @staticmethod
+    # def find_nearest_cspace(mapdata: OccupancyGrid, cell: tuple[int, int]) -> tuple[int, int]:
+    #     # Find the closest occupied cell in the C-space
+    #     closest = None
+    #     min_distance = float('inf')
+    #     neighbors = PathPlanner.any_neighbors_of_8(mapdata, cell)
+
+    #     for neighbor in neighbors:
+    #         if mapdata.data[PathPlanner.grid_to_index(mapdata, neighbor)] == 100:  # C-space cell
+    #             distance = PathPlanner.euclidean_distance(cell, neighbor)
+    #             if distance < min_distance:
+    #                 min_distance = distance
+    #                 closest = neighbor
             
-            if closest == None:
+    #         if closest == None:
                 
-                nested_neighbors = PathPlanner.any_neighbors_of_8(mapdata, neighbor)
+    #             nested_neighbors = PathPlanner.any_neighbors_of_8(mapdata, neighbor)
 
-                for nested_neighbor in nested_neighbors:
-                    if mapdata.data[PathPlanner.grid_to_index(mapdata, nested_neighbor)] == 100:  # C-space cell
-                        distance = PathPlanner.euclidean_distance(cell, nested_neighbor)
-                        if distance < min_distance:
-                            min_distance = distance
-                            closest = nested_neighbor
+    #             for nested_neighbor in nested_neighbors:
+    #                 if mapdata.data[PathPlanner.grid_to_index(mapdata, nested_neighbor)] == 100:  # C-space cell
+    #                     distance = PathPlanner.euclidean_distance(cell, nested_neighbor)
+    #                     if distance < min_distance:
+    #                         min_distance = distance
+    #                         closest = nested_neighbor
 
-        return closest
+    #     return closest
 
     @staticmethod
     def penalty_for_cell_next_to_cspace(mapdata:OccupancyGrid, cell: tuple[int, int]) -> int:
@@ -339,21 +424,32 @@ class PathPlanner:
         :return        [bool]          True if the cell is not walkable, or if it's next to cspace
         """
     
-        nearest_cspace = PathPlanner.find_nearest_cspace(mapdata, cell)
+        nearest_cspace = PathPlanner.find_closest_cspace_cell(mapdata, cell)
         if (nearest_cspace != None):
             distance = PathPlanner.euclidean_distance(cell, nearest_cspace)
 
-            # Define penalty based on distance: closer to C-space, higher penalty
-            if distance <= 1:  # If within 1 unit of the C-space
+             # Define penalty based on distance: closer to C-space, higher penalty
+            if distance <= 5:  # If within 1 unit of the C-space
                 return 3000  # Maximum penalty
-            elif distance <= 2:  # If within 2 units of C-space
-                return 2000  # Moderate penalty
-            elif distance <= 3: #if within 3 units of the C-space
-                return 1000
-            elif distance <= 4: #if within 4 units of the C-space
-                return 500
+            elif 5 < distance <= 10:  # If within 2 units of C-space
+                return 1500  # Moderate penalty
+            # elif distance <= 3: #if within 3 units of the C-space
+            #     return 1000
+            # elif distance <= 4: #if within 4 units of the C-space
+            #     return 500
             else:
                 return 0  # No penalty if far from C-space
+            # # Define penalty based on distance: closer to C-space, higher penalty
+            # if distance <= 1:  # If within 1 unit of the C-space
+            #     return 3000  # Maximum penalty
+            # elif distance <= 2:  # If within 2 units of C-space
+            #     return 2000  # Moderate penalty
+            # elif distance <= 3: #if within 3 units of the C-space
+            #     return 1000
+            # elif distance <= 4: #if within 4 units of the C-space
+            #     return 500
+            # else:
+            #     return 0  # No penalty if far from C-space
         else: 
             return 0  # No penalty if far from C-space
 
@@ -425,6 +521,55 @@ class PathPlanner:
     
     def a_star(self, mapdata: OccupancyGrid, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
         ### REQUIRED CREDIT
+
+        # if not (PathPlanner.is_cell_walkable(mapdata, start)):
+
+        # Validate start position
+        if (
+            mapdata.data[PathPlanner.grid_to_index(mapdata, start)] != 0 or
+            PathPlanner.penalty_for_cell_next_to_cspace(mapdata, start) > 0
+        ):
+            rospy.loginfo("Start position is invalid. Searching for the closest walkable cell...")
+            start = PathPlanner.find_closest_walkable_cell(mapdata, start)
+            if start is None:
+                rospy.loginfo("No valid start position found.")
+                velocity_msg = Twist()
+                velocity_msg.linear.x = 0.0
+                velocity_msg.linear.y = 0.0
+                velocity_msg.linear.z = 0.0
+                velocity_msg.angular.x = 0.0
+                velocity_msg.angular.y = 0.0
+                velocity_msg.angular.z = 0.0
+                self.are_we_moving.publish(velocity_msg)
+
+                bool_msg = Bool()
+                bool_msg.data = True
+                self.arrived_to_goal.publish(bool_msg)
+                return []
+
+        # Validate goal position
+        if (
+            mapdata.data[PathPlanner.grid_to_index(mapdata, goal)] != 0 or
+            PathPlanner.penalty_for_cell_next_to_cspace(mapdata, goal) > 0
+        ):
+            rospy.loginfo("Goal position is invalid. Searching for the closest walkable cell...")
+            goal = PathPlanner.find_closest_walkable_cell(mapdata, goal)
+            if goal is None:
+                rospy.loginfo("No valid goal position found.")
+                velocity_msg = Twist()
+                velocity_msg.linear.x = 0.0
+                velocity_msg.linear.y = 0.0
+                velocity_msg.linear.z = 0.0
+                velocity_msg.angular.x = 0.0
+                velocity_msg.angular.y = 0.0
+                velocity_msg.angular.z = 0.0
+                self.are_we_moving.publish(velocity_msg)
+
+                bool_msg = Bool()
+                bool_msg.data = True
+                self.arrived_to_goal.publish(bool_msg)
+                return []
+
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
         truncated_start = (int(start[0]), int(start[1]))
@@ -436,9 +581,9 @@ class PathPlanner:
         came_from[truncated_start] = None
         cost_so_far[truncated_start] = 0
 
-        if mapdata.data[truncated_start[1] * mapdata.info.width + truncated_start[0]] == 100:
-            rospy.loginfo("Start position is an obstacle.")
-            return []
+        # if mapdata.data[truncated_start[1] * mapdata.info.width + truncated_start[0]] == 100:
+        #     rospy.loginfo("Start position is an obstacle.")
+        #     return []
 
         # runs until goal is found or frontier is fully explored
         while not frontier.empty():
@@ -447,8 +592,8 @@ class PathPlanner:
             grid_cells.cell_width = mapdata.info.resolution
             grid_cells.cell_height = mapdata.info.resolution
             current = frontier.get()
-            print("---------------- current: ", current)
-            print("---------------- truncated_goal: ", truncated_goal)
+            # print("---------------- current: ", current)
+            # print("---------------- truncated_goal: ", truncated_goal)
             if current == truncated_goal:
                 print("---------------------------------------------------reached goal")
                 break
@@ -493,6 +638,19 @@ class PathPlanner:
                 # print("truncated start : ", truncated_start)
         else:
             rospy.loginfo("-----------------------------------------------------------could not find path to frontier")
+            velocity_msg = Twist()
+            velocity_msg.linear.x = 0.0
+            velocity_msg.linear.y = 0.0
+            velocity_msg.linear.z = 0.0
+            velocity_msg.angular.x = 0.0
+            velocity_msg.angular.y = 0.0
+            velocity_msg.angular.z = 0.0
+            self.are_we_moving.publish(velocity_msg)
+
+            bool_msg = Bool()
+            bool_msg.data = True
+            self.arrived_to_goal.publish(bool_msg)
+
         
         path.reverse()
 
@@ -579,7 +737,7 @@ class PathPlanner:
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
-        cspacedata = self.calc_cspace(mapdata, 3)
+        cspacedata = self.calc_cspace(mapdata, 5)
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
@@ -597,7 +755,7 @@ class PathPlanner:
         Runs the node until Ctrl-C is pressed.
         """
         map = self.request_map()
-        self.calc_cspace(map, 1)
+        #self.calc_cspace(map, 4)
         
         rospy.spin()
 

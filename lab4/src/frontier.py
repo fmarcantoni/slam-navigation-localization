@@ -35,7 +35,7 @@ class Frontier:
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
         self.arrived_to_goal = rospy.Subscriber("/arrived_at_centroid", Bool, self.update_centroid)
-        #self.are_we_moving = rospy.Subscriber('/are_we_moving', Twist, self.update_frontiers)
+        self.are_we_moving = rospy.Subscriber('/are_we_moving', Twist, self.update_frontiers)
 
         self.centroid_pub = rospy.Publisher("/move_base_simple/centroid_goal", PoseStamped, queue_size=10)
         self.frontier_viz = rospy.Publisher("/frontier", GridCells, queue_size=10)
@@ -45,6 +45,9 @@ class Frontier:
         self.map_pub = rospy.Publisher("/map/Zeros", OccupancyGrid, queue_size=10)
         
         # self.frontier_markers_viz = rospy.Publisher("/frontier_markers", MarkerArray, queue_size=10)
+        self.grid = []
+        self.mapgrid = OccupancyGrid()
+
         self.px = 0
         self.py = 0
         self.pth = 0
@@ -58,12 +61,51 @@ class Frontier:
 
         self.moved_to_centroid = True
     
-    # def update_frontiers(self, msg: Twist) -> None:
-    #     #if we are not we update the frontiers
-    #     if (msg.linear.x == 0 and msg.linear.y == 0 and msg.linear.z == 0 and 
-    #         msg.angular.x == 0 and msg.angular.y == 0 and msg.angular.z == 0):
-    #             #update the frontiers
-    #             #then we check if we have any more frontiers, if we do not we save the map
+    def update_frontiers(self, msg: Twist) -> None:
+        #if we are not we update the frontiers
+        if (msg.linear.x == 0 and msg.linear.y == 0 and msg.linear.z == 0 and 
+            msg.angular.x == 0 and msg.angular.y == 0 and msg.angular.z == 0):
+
+            binary_map = self.map_preprocess(self.grid)
+            
+            # Step 2: Gaussian smoothing
+            smoothed = self.map_smooth(binary_map)
+            
+            # self.visualizationMap(smoothed)
+
+            # Step 3: Compute Laplacian
+            laplacian = self.compute_laplacian(smoothed)
+            
+            # # Step 3.5: Morphological Closing
+            # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, 3)
+            # laplacian_closed = cv2.morphologyEx(laplacian, cv2.MORPH_CLOSE, kernel)
+            
+            # Step 4: Detect zero crossings
+            # edges = self.detect_zero_crossings(laplacian_closed)
+            edges = self.detect_zero_crossings(binary_map)
+
+            # Step 4.1 Publish 0-crossing map
+            # crossing_map = self.publish_map()
+            frontiers = self.create_frontiers(edges)
+
+            if not any(frontiers): # if we do not have any frontier
+                self.save_final_map()
+                #publish goal intial pose
+            else:
+
+                self.publish_frontier(frontiers)
+                centroid = self.choose_centroid(edges, self.mapgrid)
+                # Step 5: Choose Centroid
+
+                print("centroid flag: ", self.moved_to_centroid)
+                #if(self.moved_to_centroid and (int(centroid[0]) != 0 and int(centroid[1]) != 0)):
+                if(self.moved_to_centroid and centroid is not None):
+                    self.publish_centroid(centroid)
+                    self.moved_to_centroid = False
+
+
+                #update the frontiers
+                #then we check if we have any more frontiers, if we do not we save the map
 
 
 
@@ -79,12 +121,12 @@ class Frontier:
     
     def map_callback(self, mapdata: OccupancyGrid) -> None:
         # https://www.netlib.org/utk/lsi/pcwLSI/text/node433.html
-        
+        self.mapgrid = mapdata
         self.map_info = mapdata.info
         
         # Step 1: Preprocess map
-        grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
-        binary_map = self.map_preprocess(grid)
+        self.grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
+        binary_map = self.map_preprocess(self.grid)
         
         # Step 2: Gaussian smoothing
         smoothed = self.map_smooth(binary_map)
@@ -132,8 +174,6 @@ class Frontier:
     def update_centroid(self, msg: Bool) -> None:
         # https://www.netlib.org/utk/lsi/pcwLSI/text/node433.html
         self.moved_to_centroid = msg.data
-       
-        
     
     def map_preprocess(self, grid: np.ndarray) -> np.ndarray:
         bin_map = np.full(grid.shape, 100, dtype=np.uint8)  # Default to occupied space
@@ -310,64 +350,6 @@ class Frontier:
         return centroids
 
 
-    # def calculate_centroids(self, frontier_list: list[list[tuple]], grid: np.ndarray) -> list[tuple]:
-    #     centroids = []
-        
-    #     if len(frontier_list) == 0:
-    #         rospy.loginfo("No more frontiers detected.")
-    #         self.save_final_map()
-
-    #     # Function to check if a cell is walkable (0 means free, 1 means obstacle)
-    #     def is_walkable(x, y):
-    #         rows, cols = grid.shape
-    #         if 0 <= x < rows and 0 <= y < cols:
-    #             return grid[x, y] == 0  # True if walkable, False if obstacle
-    #         return False
-
-    #     # Function to find the nearest walkable cell in the known space
-    #     def find_nearest_walkable_cell(x, y):
-    #         # Perform a BFS or other strategy to find the nearest walkable cell
-    #         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Cardinal directions
-    #         queue = deque([(x, y)])
-    #         visited = set()
-    #         visited.add((x, y))
-
-    #         while queue:
-    #             cx, cy = queue.popleft()
-    #             # Check if the current cell is walkable
-    #             if is_walkable(cx, cy):
-    #                 return cx, cy
-                
-    #             # Add neighboring cells to the queue
-    #             for dx, dy in directions:
-    #                 nx, ny = cx + dx, cy + dy
-    #                 if (nx, ny) not in visited:
-    #                     queue.append((nx, ny))
-    #                     visited.add((nx, ny))
-
-    #         return x, y  # Return the original position if no walkable cell is found (shouldn't happen)
-
-    #     for frontier in frontier_list:
-    #         # Calculate the centroid by averaging the x and y coordinates of the frontier points
-    #         x_list = []
-    #         y_list = []
-
-    #         # Extract x and y coordinates separately
-    #         for point in frontier:
-    #             x_list.append(point[0])
-    #             y_list.append(point[1])
-
-    #         centroid_x = np.mean(x_list)
-    #         centroid_y = np.mean(y_list)
-
-    #         # Find the nearest walkable cell in the known walkable space in front of the frontier
-    #         walkable_x, walkable_y = find_nearest_walkable_cell(int(centroid_x), int(centroid_y))
-
-    #         # Append the walkable centroid as a Point object
-    #         centroids.append(Point(x=walkable_x, y=walkable_y, z=0))
-
-    #     return centroids
-
     def closest_walkable_cell(self, grid: np.ndarray, start: tuple[int, int], tolerance: int) -> tuple[int, int]:
         """
         Find the closest walkable cell to the starting cell using BFS, checking all 8 neighbors, 
@@ -426,80 +408,81 @@ class Frontier:
         # Return the best cell found
         return best_cell
 
-
     def choose_centroid(self, zero_crossings: np.ndarray, mapdata: OccupancyGrid) -> Point:
         frontiers = self.create_frontiers(zero_crossings)
-        self.publish_frontier(frontiers)
+        # self.publish_frontier(frontiers)
 
-        if not frontiers:
+        if not any(frontiers):
             rospy.loginfo("No frontiers detected.")
+            self.save_final_map()
+            #sedn the bot to initial position PHASE 2
+        else:
 
-            return
-    
-        # centroids = np.array([
-        #     [np.mean([p[0] for p in frontier]), np.mean([p[1] for p in frontier])] for frontier in frontiers])
-
-        grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
-
-        centroids = self.calculate_centroids(frontiers)
         
-        sizes = np.array([len(f) for f in frontiers])
-    
-        # Vectorized distance calculation
-        #distances = np.linalg.norm(centroids - np.array([self.px, self.py]), axis=1)
+            # centroids = np.array([
+            #     [np.mean([p[0] for p in frontier]), np.mean([p[1] for p in frontier])] for frontier in frontiers])
 
-        centroids_array = np.array([[point.x, point.y] for point in centroids])
-        distances = np.linalg.norm(centroids_array - np.array([self.px, self.py]), axis=1)
+            self.grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
 
-        walkable_centroids = []
-        walkable_distances = []  # Store the corresponding distances of the walkable centroids
-        walkable_sizes = []  # Store the corresponding sizes of the walkable centroids
+            centroids = self.calculate_centroids(frontiers)
+            
+            sizes = np.array([len(f) for f in frontiers])
+        
+            # Vectorized distance calculation
+            #distances = np.linalg.norm(centroids - np.array([self.px, self.py]), axis=1)
 
-        for i, centroid in enumerate(centroids_array):
-            print(i)
-            print(centroid)
-            print(enumerate(centroids))
-            # centroid_x = int(centroid[0])
-            # centroid_y = int(centroid[1])
-            centroid_x = int(centroid[0])
-            centroid_y = int(centroid[1])
-            centroid_truncated = (centroid_x, centroid_y)
+            centroids_array = np.array([[point.x, point.y] for point in centroids])
+            distances = np.linalg.norm(centroids_array - np.array([self.px, self.py]), axis=1)
 
-            if PathPlanner.is_cell_walkable(mapdata, centroid_truncated):
-                walkable_centroids.append(centroid_truncated)
-                walkable_distances.append(distances[i])
-                walkable_sizes.append(sizes[i])
+            walkable_centroids = []
+            walkable_distances = []  # Store the corresponding distances of the walkable centroids
+            walkable_sizes = []  # Store the corresponding sizes of the walkable centroids
 
-            else: # if centroid is not walkable, find the closest walkable cell and return it
+            for i, centroid in enumerate(centroids_array):
+                print(i)
+                print(centroid)
+                print(enumerate(centroids))
+                # centroid_x = int(centroid[0])
+                # centroid_y = int(centroid[1])
+                centroid_x = int(centroid[0])
+                centroid_y = int(centroid[1])
+                centroid_truncated = (centroid_x, centroid_y)
 
-                new_centroid = self.closest_walkable_cell(zero_crossings, centroid_truncated, 0.25)
-                
-                if new_centroid is not None and new_centroid is not (0, 0):
-                    # Update centroid and calculate its distance and size
-                    walkable_centroids.append(new_centroid)
-                    new_distance = np.linalg.norm(np.array(new_centroid) - np.array([self.px, self.py]))
-                    walkable_distances.append(new_distance)
-                    
-                    # Assuming the size of the frontier remains the same
+                if PathPlanner.is_cell_walkable(mapdata, centroid_truncated):
+                    walkable_centroids.append(centroid_truncated)
+                    walkable_distances.append(distances[i])
                     walkable_sizes.append(sizes[i])
-                else:
-                    rospy.loginfo(f"Unable to find a walkable cell near centroid {centroid}")
+
+                else: # if centroid is not walkable, find the closest walkable cell and return it
+
+                    new_centroid = self.closest_walkable_cell(zero_crossings, centroid_truncated, 0.25)
+                    
+                    if new_centroid is not None and new_centroid != (0, 0):
+                        # Update centroid and calculate its distance and size
+                        walkable_centroids.append(new_centroid)
+                        new_distance = np.linalg.norm(np.array(new_centroid) - np.array([self.px, self.py]))
+                        walkable_distances.append(new_distance)
+                        
+                        # Assuming the size of the frontier remains the same
+                        walkable_sizes.append(sizes[i])
+                    else:
+                        rospy.loginfo(f"Unable to find a walkable cell near centroid {centroid}")
 
 
-        # Convert the filtered list back to a numpy array
-        centroids = np.array(walkable_centroids)
-        distances = np.array(walkable_distances)
-        sizes = np.array(walkable_sizes)
+            # Convert the filtered list back to a numpy array
+            centroids = np.array(walkable_centroids)
+            distances = np.array(walkable_distances)
+            sizes = np.array(walkable_sizes)
 
-        if len(centroids) == 0:
-            rospy.loginfo("No walkable centroids found.")
-            return None
+            if len(centroids) == 0:
+                rospy.loginfo("No walkable centroids found.")
+                return None
 
-        alpha = 0.5
-        beta = 0.5
-        heuristic = alpha * distances - beta * sizes
-        rospy.loginfo("----------------------------------------------------------------------------centroids chosen")
-        return centroids[np.argmin(heuristic)]
+            alpha = 0.5
+            beta = 0.5
+            heuristic = alpha * distances - beta * sizes
+            rospy.loginfo("----------------------------------------------------------------------------centroids chosen")
+            return centroids[np.argmin(heuristic)]
 
 
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
@@ -546,7 +529,7 @@ class Frontier:
         rospy.loginfo("------------------------ centroids published")
         self.centroid_pub.publish(goal_position_msg)
 
-    def save_final_map():
+    def save_final_map(self):
         map_path = "~/final_map"
         try:
             rospy.loginfo(f"Saving final map to {map_path}")

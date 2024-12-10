@@ -30,6 +30,7 @@ class Lab2:
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
         #rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
+        self.are_we_moving = rospy.Publisher('/are_we_moving', Twist, queue_size=10)
 
         rospy.Subscriber("/path_planner/actual_path_viz", Path, self.go_to_destination)
 
@@ -38,9 +39,9 @@ class Lab2:
         self.py = 0
         self.pth = 0
         self.lastFoundIndex = 0     #this is for finding intersections
-        self.lookAhead = 0.3
-        self.Kp_turn = 0.08
-        self.Kp_lin = 0.6
+        self.lookAhead = 0.5
+        self.Kp_turn = 0.04
+        self.Kp_lin = 0.3
 
         self.givenDestination = False
         self.oldTime = 0.0
@@ -543,6 +544,19 @@ class Lab2:
             msg = Bool()
             msg.data = True
             self.arrived_to_goal.publish(msg)
+
+            velocity_msg = Twist()
+            velocity_msg.linear.x = 0.0
+            velocity_msg.linear.y = 0.0
+            velocity_msg.linear.z = 0.0
+            velocity_msg.angular.x = 0.0
+            velocity_msg.angular.y = 0.0
+            velocity_msg.angular.z = 0.0
+            self.are_we_moving.publish(velocity_msg)
+
+
+
+
             print("Has reached the destination!")
             print(finalPosition)
             self.send_speed(0.0, 0.0)
