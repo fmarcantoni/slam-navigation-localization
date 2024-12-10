@@ -36,6 +36,7 @@ class Frontier:
         self.odom = rospy.Subscriber("/odom", Odometry, self.update_odom)
         self.arrived_to_goal = rospy.Subscriber("/arrived_at_centroid", Bool, self.update_centroid)
         self.are_we_moving = rospy.Subscriber('/are_we_moving', Twist, self.update_frontiers)
+        self.path_found = rospy.Subscriber("/path_found", Bool, self.update_path)
 
         self.centroid_pub = rospy.Publisher("/move_base_simple/centroid_goal", PoseStamped, queue_size=10)
         self.frontier_viz = rospy.Publisher("/frontier", GridCells, queue_size=10)
@@ -60,7 +61,11 @@ class Frontier:
         self.pthQ.w = 1
 
         self.moved_to_centroid = True
+        self.is_centroid_valid = True
     
+    def update_path(self, msg: Bool) -> None:
+        self.is_centroid_valid = msg.data
+
     def update_frontiers(self, msg: Twist) -> None:
         #if we are not we update the frontiers
         if (msg.linear.x == 0 and msg.linear.y == 0 and msg.linear.z == 0 and 
@@ -95,6 +100,8 @@ class Frontier:
 
                 self.publish_frontier(frontiers)
                 centroid = self.choose_centroid(edges, self.mapgrid)
+
+
                 # Step 5: Choose Centroid
 
                 print("centroid flag: ", self.moved_to_centroid)
@@ -106,8 +113,6 @@ class Frontier:
 
                 #update the frontiers
                 #then we check if we have any more frontiers, if we do not we save the map
-
-
 
     def update_odom(self, msg: Odometry) -> None:
         self.px = msg.pose.pose.position.x
@@ -154,7 +159,6 @@ class Frontier:
         if(self.moved_to_centroid and centroid is not None):
             self.publish_centroid(centroid)
             self.moved_to_centroid = False
-
 
     # def check_for_frontiers(self, mapdata: OccupancyGrid, bin_map: np.ndarray) -> Bool:
     #     if ()
@@ -349,64 +353,101 @@ class Frontier:
             centroids.append(Point(x = centroid_x, y = centroid_y, z = 0))
         return centroids
 
+    # def closest_walkable_cell(self, grid: np.ndarray, start: tuple[int, int], tolerance: int) -> tuple[int, int]:
+    #     """
+    #     Find the closest walkable cell to the starting cell using BFS, checking all 8 neighbors, 
+    #     while ensuring that the chosen cell is the furthest from the C-space but closest to the original illegal centroid.
 
-    def closest_walkable_cell(self, grid: np.ndarray, start: tuple[int, int], tolerance: int) -> tuple[int, int]:
-        """
-        Find the closest walkable cell to the starting cell using BFS, checking all 8 neighbors, 
-        while ensuring that the chosen cell is the furthest from the C-space but closest to the original illegal centroid.
-
-        :param grid: A 2D numpy array representing the occupancy grid. 
-                    0 represents a free cell, 1 represents an obstacle.
-        :param start: A tuple (x, y) indicating the starting cell (the centroid).
-        :param tolerance: The tolerance distance (half the diameter of the robot) for the offset from the centroid.
-        :return: A tuple (x, y) of the closest walkable cell, or None if no walkable cell is found.
-        """
-        rows, cols = grid.shape
-        visited = set()
-        queue = deque([start])
+    #     :param grid: A 2D numpy array representing the occupancy grid. 
+    #                 0 represents a free cell, 1 represents an obstacle.
+    #     :param start: A tuple (x, y) indicating the starting cell (the centroid).
+    #     :param tolerance: The tolerance distance (half the diameter of the robot) for the offset from the centroid.
+    #     :return: A tuple (x, y) of the closest walkable cell, or None if no walkable cell is found.
+    #     """
+    #     rows, cols = grid.shape
+    #     visited = set()
+    #     queue = deque([start])
         
-        # Directions for moving in 8-connectivity (including diagonals)
-        directions = [
-            (-1, 0), (1, 0), (0, -1), (0, 1),  # Cardinal directions
-            (-1, -1), (-1, 1), (1, -1), (1, 1)  # Diagonal directions
-        ]
+    #     # Directions for moving in 8-connectivity (including diagonals)
+    #     directions = [
+    #         (-1, 0), (1, 0), (0, -1), (0, 1),  # Cardinal directions
+    #         (-1, -1), (-1, 1), (1, -1), (1, 1)  # Diagonal directions
+    #     ]
 
-        best_cell = None
-        best_distance = float('inf')  # To store the best distance from the centroid
-        best_offset = -float('inf')  # To store the best offset from C-space
+    #     best_cell = None
+    #     best_distance = float('inf')  # To store the best distance from the centroid
+    #     best_offset = -float('inf')  # To store the best offset from C-space
+
+    #     while queue:
+    #         current = queue.popleft()
+    #         x, y = current
+
+    #         # Check if the cell is within bounds and not visited
+    #         if (x, y) in visited or not (0 <= x < rows and 0 <= y < cols):
+    #             continue
+
+    #         visited.add((x, y))
+            
+    #         # Check if the current cell is walkable
+    #         if grid[x, y] == 0:
+    #             # Calculate the Euclidean distance to the centroid
+    #             distance_to_centroid = dist((x, y), start)
+                
+    #             # Check if we meet the offset criteria
+    #             offset_from_c_space = distance_to_centroid - tolerance
+                
+    #             # We prioritize the cell with the furthest offset but closest to the original centroid
+    #             if offset_from_c_space > best_offset or (offset_from_c_space == best_offset and distance_to_centroid < best_distance):
+    #                 best_cell = (x, y)
+    #                 best_distance = distance_to_centroid
+    #                 best_offset = offset_from_c_space
+            
+    #         # Add neighboring cells to the queue
+    #         for dx, dy in directions:
+    #             neighbor = (x + dx, y + dy)
+    #             if neighbor not in visited:
+    #                 queue.append(neighbor)
+        
+    #     # Return the best cell found
+    #     return best_cell
+
+    def find_closest_walkable_cell(self, mapdata: OccupancyGrid, position: tuple[int, int]) -> tuple[int, int]:
+        """
+        Finds the closest free and walkable cell to the given position.
+
+        :param mapdata: [OccupancyGrid] The map data.
+        :param position: [tuple[int, int]] The starting or goal position.
+        :return: [tuple[int, int]] The closest walkable cell or None if not found.
+        """
+        width = mapdata.info.width
+        height = mapdata.info.height
+
+        # Queue for BFS
+        queue = [position]
+        visited = set()
+        visited.add(position)
 
         while queue:
-            current = queue.popleft()
+            current = queue.pop(0)
             x, y = current
 
-            # Check if the cell is within bounds and not visited
-            if (x, y) in visited or not (0 <= x < rows and 0 <= y < cols):
-                continue
+            # Check if the current cell is free (not an obstacle, not in C-space)
+            if (
+                0 <= x < width and
+                0 <= y < height and
+                mapdata.data[PathPlanner.grid_to_index(mapdata, current)] == 0
+            ):
+                return current
 
-            visited.add((x, y))
-            
-            # Check if the current cell is walkable
-            if grid[x, y] == 0:
-                # Calculate the Euclidean distance to the centroid
-                distance_to_centroid = dist((x, y), start)
-                
-                # Check if we meet the offset criteria
-                offset_from_c_space = distance_to_centroid - tolerance
-                
-                # We prioritize the cell with the furthest offset but closest to the original centroid
-                if offset_from_c_space > best_offset or (offset_from_c_space == best_offset and distance_to_centroid < best_distance):
-                    best_cell = (x, y)
-                    best_distance = distance_to_centroid
-                    best_offset = offset_from_c_space
-            
-            # Add neighboring cells to the queue
-            for dx, dy in directions:
-                neighbor = (x + dx, y + dy)
+            # Explore neighbors (walkable or not)
+            neighbors = PathPlanner.any_neighbors_of_8(mapdata, current)  # Use a method that returns all 8 neighbors
+            for neighbor in neighbors:
                 if neighbor not in visited:
+                    visited.add(neighbor)
                     queue.append(neighbor)
-        
-        # Return the best cell found
-        return best_cell
+
+        # Return None if no walkable cell is found
+        return None
 
     def choose_centroid(self, zero_crossings: np.ndarray, mapdata: OccupancyGrid) -> Point:
         frontiers = self.create_frontiers(zero_crossings)
@@ -455,7 +496,7 @@ class Frontier:
 
                 else: # if centroid is not walkable, find the closest walkable cell and return it
 
-                    new_centroid = self.closest_walkable_cell(zero_crossings, centroid_truncated, 0.25)
+                    new_centroid = self.find_closest_walkable_cell(self.mapgrid, centroid_truncated)
                     
                     if new_centroid is not None and new_centroid != (0, 0):
                         # Update centroid and calculate its distance and size
@@ -481,6 +522,10 @@ class Frontier:
             alpha = 0.5
             beta = 0.5
             heuristic = alpha * distances - beta * sizes
+
+            if not self.path_found:
+                centroids.pop(np.argmin(heuristic))
+                
             rospy.loginfo("----------------------------------------------------------------------------centroids chosen")
             return centroids[np.argmin(heuristic)]
 

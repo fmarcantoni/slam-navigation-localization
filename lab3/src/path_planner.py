@@ -42,6 +42,8 @@ class PathPlanner:
         self.are_we_moving = rospy.Publisher('/are_we_moving', Twist, queue_size=10)
         self.arrived_to_goal = rospy.Publisher("/arrived_at_centroid", Bool, queue_size=10)
 
+        self.path_found = rospy.Publisher("/path_found", Bool, queue_size=10)
+
 
         ## Initialize the request counter
         request_counter = 0
@@ -627,6 +629,9 @@ class PathPlanner:
         path = []
         # current = truncated_goal
         if current == truncated_goal:
+            bool_msg = Bool()
+            bool_msg.data = True
+            self.path_found.publish(bool_msg)
             # print("current : ", current)
             # print("came from:")
             # print(came_from)
@@ -650,6 +655,10 @@ class PathPlanner:
             bool_msg = Bool()
             bool_msg.data = True
             self.arrived_to_goal.publish(bool_msg)
+
+            path_found_msg = Bool()
+            path_found_msg.data = False
+            self.path_found.publish(bool_msg)
 
         
         path.reverse()
