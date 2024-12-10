@@ -371,7 +371,6 @@ class PathPlanner:
         return req
 
 
-
     def calc_cspace(self, mapdata: OccupancyGrid, padding: int) -> OccupancyGrid:
         """
         Calculates the C-Space, i.e., makes the obstacles in the map thicker.
@@ -422,7 +421,6 @@ class PathPlanner:
         return occupancy_grid
 
 
-    
     def a_star(self, mapdata: OccupancyGrid, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
         ### REQUIRED CREDIT
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
@@ -447,8 +445,8 @@ class PathPlanner:
             grid_cells.cell_width = mapdata.info.resolution
             grid_cells.cell_height = mapdata.info.resolution
             current = frontier.get()
-            print("---------------- current: ", current)
-            print("---------------- truncated_goal: ", truncated_goal)
+            # print("---------------- current: ", current)
+            # print("---------------- truncated_goal: ", truncated_goal)
             if current == truncated_goal:
                 print("---------------------------------------------------reached goal")
                 break
@@ -493,6 +491,7 @@ class PathPlanner:
                 # print("truncated start : ", truncated_start)
         else:
             rospy.loginfo("-----------------------------------------------------------could not find path to frontier")
+            return []
         
         path.reverse()
 
@@ -565,8 +564,7 @@ class PathPlanner:
 
         return path_message
 
-
-        
+     
     def plan_path(self, msg):
         """
         Plans a path between the start and goal locations in the requested.
@@ -588,7 +586,11 @@ class PathPlanner:
         # waypoints = PathPlanner.optimize_path(path)
         ## Return a Path message
         rospy.loginfo("---------------------- plan_path")
-        return self.path_to_message(mapdata, path)
+        if path:
+            return self.path_to_message(mapdata, path)
+        else:
+            return []
+    
 
 
     
