@@ -12,7 +12,7 @@
     
     <!-- Load Map From Phase 1 
         REMEMBER TO CHANGE FILE PATH IN LOCALIZATION.PY ALSO-->
-    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/larger_mini.yaml"/>
+    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/larger_mini2.yaml"/>
 
     <!-- TurtleBot3 -->
     <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">

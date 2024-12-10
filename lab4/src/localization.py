@@ -21,7 +21,7 @@ class Localization:
         self.final_point = PoseStamped()
         self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
 
-        self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini.pgm')
+        self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini2.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini2.pgm')
         rospy.sleep(1)
 
 
