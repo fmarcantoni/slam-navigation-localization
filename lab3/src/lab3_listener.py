@@ -24,6 +24,7 @@ class Lab3_Listener:
         Lab3_Listener.px = 0
         Lab3_Listener.py = 0
         Lab3_Listener.quart = 0
+        rospy.sleep(1.0)
 
     def activate_service(self, msg: PoseStamped):
         """
@@ -34,7 +35,7 @@ class Lab3_Listener:
         """
         plan_path = rospy.ServiceProxy('plan_path', GetPlan)
 
-        print("hello! service should be active")
+        rospy.loginfo("Service got the centroid. It's about to pass it to path planner node")
         
         start = PoseStamped()
         start.pose.position.x = self.px
@@ -43,7 +44,7 @@ class Lab3_Listener:
         start.pose.orientation = self.quart
 
         goal = msg
-
+        rospy.wait_for_service('plan_path')
         plan_path(start, goal, 1)
 
     def update_odometry(self, msg: Odometry):

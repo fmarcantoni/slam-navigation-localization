@@ -376,7 +376,7 @@ class Frontier:
             if not visited[i, j]:
                 frontier = self.bfs(i, j, zero_crossings, visited)
                 # print(len(frontier))   
-                if len(frontier) > 5:
+                if len(frontier) > 10:
                     frontiers.append(frontier)
                              
         rospy.loginfo("frontiers created:")
@@ -574,7 +574,7 @@ class Frontier:
             centroid_y = int(centroid[1])
             centroid_truncated = (centroid_x, centroid_y)
 
-            rospy.loginfo
+            #rospy.loginfo
             if PathPlanner.is_cell_walkable(mapdata, centroid_truncated):
                 walkable_centroids.append(centroid_truncated)
                 walkable_distances.append(distances[i])
@@ -607,8 +607,8 @@ class Frontier:
             rospy.loginfo("No walkable centroids found.")
             return None
 
-        alpha = 0.5
-        beta = 0.5
+        alpha = 0.2
+        beta = 0.8
         heuristic = alpha * distances - beta * sizes
         self.heuristic = heuristic
 

@@ -3,14 +3,11 @@ from __future__ import annotations
 import rospy
 import math
 import angles
-import tf
 from nav_msgs.msg import Odometry, Path
-from geometry_msgs.msg import PoseStamped, PointStamped, Quaternion
+from geometry_msgs.msg import PoseStamped, PointStamped
 from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool
-from sensor_msgs.msg import LaserScan
-
 
 class Lab2:
 
@@ -36,79 +33,23 @@ class Lab2:
         self.are_we_moving = rospy.Publisher('/are_we_moving', Twist, queue_size=10)
 
         rospy.Subscriber("/path_planner/actual_path_viz", Path, self.go_to_destination)
-
-
-        #for avoiding wall collisions
-        self.scan_laser = rospy.Subscriber("/scan", LaserScan, self.backoff_wall)
+        rospy.Subscriber("/localization_ready", Bool, self.readyCallback)
+        rospy.Subscriber("/move_base_simple/localization_goal", PoseStamped, self.local_move)
 
         #init attributes
         self.px = 0
         self.py = 0
         self.pth = 0
-
-        self.pthQ = Quaternion()
-        self.pthQ.x = 0
-        self.pthQ.y = 0
-        self.pthQ.z = 1
-        self.pthQ.w = 1
-
-        self.listener = tf.TransformListener()
-
-
         self.lastFoundIndex = 0     #this is for finding intersections
-        self.lookAhead = 0.3
-        self.Kp_turn = 0.013
-        self.Kp_lin = 0.2
+        self.lookAhead = 0.1
+        self.Kp_turn = 0.034
+        self.Kp_lin = 0.6
 
         self.givenDestination = False
         self.oldTime = 0.0
         self.pathCoordinates = []
 
-        rospy.sleep(1.0)
 
-
-    def backoff_wall(self, msg: LaserScan) -> None:
-        """
-        Checks if the robot is facing a wall that is too close.
-        If so, backs off for a short time and stops.
-        """
-        front_angle = 0  # Assuming 0 radians corresponds to the front of the robot
-        angle_range = math.pi / 2  # Angular range (in radians) to consider the "front"
-    
-        # Calculate indices in the LaserScan ranges array for the front
-        start_angle = front_angle - angle_range / 2
-        end_angle = front_angle + angle_range / 2
-
-        # Determine the corresponding indices in the LaserScan ranges
-        start_index = int((start_angle - msg.angle_min) / msg.angle_increment)
-        end_index = int((end_angle - msg.angle_min) / msg.angle_increment)
-
-        # Clip indices to stay within the bounds of the ranges array
-        start_index = max(0, start_index)
-        end_index = min(len(msg.ranges) - 1, end_index)
-
-        # Check if any reading in the front range is too close
-        for i in range(start_index, end_index + 1):
-            if msg.ranges[i] > 0 and msg.ranges[i] <= 0.15:  # Threshold distance in meters
-                rospy.loginfo("Wall detected in front, backing off...")
-                self.send_speed(-0.2, 0.6)  # Backward speed
-                rospy.sleep(1.5)  # Move backward for 1 second
-                self.send_speed(0.0, 0.0)  # Stop the robot
-
-
-
-                # Publish "arrived_to_goal" as True
-                #REMEMBER FOLLOWING THREE LINES WERE COMMENTED OUT. MIGHT WANT TO UNCOMMENT THEM ====================================================================================
-                #========================================================================================================================================
-                #========================================================================================================================================
-                #========================================================================================================================================
-                #========================================================================================================================================
-                #========================================================================================================================================
-                #=======================================================================================================================================
-                msg = Bool()
-                msg.data = True
-                self.arrived_to_goal.publish(msg)
-                return  # Exit after handling the close wall
 
     def send_speed(self, linear_speed: float, angular_speed: float):
         """
@@ -135,7 +76,16 @@ class Lab2:
         r = rospy.Rate(10) # 10hz
         r.sleep()
 
-        
+    def readyCallback(self, msg:Bool):
+        self.ready = msg.data
+        if self.ready:
+            self.send_speed(0,0)
+
+    def local_move(self, msg:PoseStamped):
+        if not self.ready:
+            rospy.loginfo("ROTATING")
+            self.rotate(10, 0.4)
+
     def drive(self, distance: float, linear_speed: float):
         """
         Drives the robot in a straight line.
@@ -384,43 +334,24 @@ class Lab2:
         for i in range(0, len(coordinatesInPath)):
             self.pathCoordinates.append(coordinatesInPath[i])
 
-    # def update_odometry(self, msg: Odometry):
-    #     """
-    #     Updates the current pose of the robot.
-    #     This method is a callback bound to a Subscriber.
-    #     :param msg [Odometry] The current odometry information.
-    #     """
-    #     ### REQUIRED CREDIT
+    def update_odometry(self, msg: Odometry):
+        """
+        Updates the current pose of the robot.
+        This method is a callback bound to a Subscriber.
+        :param msg [Odometry] The current odometry information.
+        """
+        ### REQUIRED CREDIT
         
-    #     self.px = msg.pose.pose.position.x
-    #     self.py = msg.pose.pose.position.y
+        self.px = msg.pose.pose.position.x
+        self.py = msg.pose.pose.position.y
 
         
 
-    #     quat_orig = msg.pose.pose.orientation
-    #     quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
-
-    #     (roll, pitch, yaw) = euler_from_quaternion(quat_list)
-    #     self.pth = math.degrees(yaw)
-
-    def update_odometry(self, msg: Odometry) -> None:
-        ps = PoseStamped()
-        ps.header.frame_id = "/odom"
-        ps.pose = msg.pose.pose
-
-        self.listener.waitForTransform("/map", "/odom", rospy.Time(0), rospy.Duration(1.0))
-
-        map_pose = self.listener.transformPose("/map", ps)
-
-        self.px = map_pose.pose.position.x
-        self.py = map_pose.pose.position.y
-        self.pz = map_pose.pose.position.z
-
-        quat_orig = map_pose.pose.orientation
+        quat_orig = msg.pose.pose.orientation
         quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
+
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = math.degrees(yaw)
-        self.pthQ = quat_orig
 
 
     def smooth_drive(self, distance: float, linear_speed: float):
@@ -576,7 +507,6 @@ class Lab2:
     
     def move_robot(self, target: tuple[float, float]):
         ###################################################################################################print("Moving Robot to %f, %f" % (target[0], target[1]))
-        rospy.loginfo("move_robot called")
         targetx = target[0]
         targety = target[1]
         currentx = self.px
@@ -622,6 +552,9 @@ class Lab2:
         finalPosition = path[-1]
         potentiallyFollow = finalPosition
         if self.distance_points(finalPosition, [self.px, self.py]) < self.lookAhead:
+            msg = Bool()
+            msg.data = True
+            self.arrived_to_goal.publish(msg)
 
             velocity_msg = Twist()
             velocity_msg.linear.x = 0.0
@@ -632,9 +565,8 @@ class Lab2:
             velocity_msg.angular.z = 0.0
             self.are_we_moving.publish(velocity_msg)
 
-            msg = Bool()
-            msg.data = True
-            self.arrived_to_goal.publish(msg)
+
+
 
             print("Has reached the destination!")
             print(finalPosition)
