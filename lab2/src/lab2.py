@@ -3,8 +3,9 @@ from __future__ import annotations
 import rospy
 import math
 import angles
+import tf
 from nav_msgs.msg import Odometry, Path
-from geometry_msgs.msg import PoseStamped, PointStamped
+from geometry_msgs.msg import PoseStamped, PointStamped, Quaternion
 from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool
@@ -38,6 +39,16 @@ class Lab2:
         self.px = 0
         self.py = 0
         self.pth = 0
+
+        self.pthQ = Quaternion()
+        self.pthQ.x = 0
+        self.pthQ.y = 0
+        self.pthQ.z = 1
+        self.pthQ.w = 1
+
+        self.listener = tf.TransformListener()
+
+
         self.lastFoundIndex = 0     #this is for finding intersections
         self.lookAhead = 0.5
         self.Kp_turn = 0.034
@@ -323,24 +334,43 @@ class Lab2:
         for i in range(0, len(coordinatesInPath)):
             self.pathCoordinates.append(coordinatesInPath[i])
 
-    def update_odometry(self, msg: Odometry):
-        """
-        Updates the current pose of the robot.
-        This method is a callback bound to a Subscriber.
-        :param msg [Odometry] The current odometry information.
-        """
-        ### REQUIRED CREDIT
+    # def update_odometry(self, msg: Odometry):
+    #     """
+    #     Updates the current pose of the robot.
+    #     This method is a callback bound to a Subscriber.
+    #     :param msg [Odometry] The current odometry information.
+    #     """
+    #     ### REQUIRED CREDIT
         
-        self.px = msg.pose.pose.position.x
-        self.py = msg.pose.pose.position.y
+    #     self.px = msg.pose.pose.position.x
+    #     self.py = msg.pose.pose.position.y
 
         
 
-        quat_orig = msg.pose.pose.orientation
+    #     quat_orig = msg.pose.pose.orientation
+    #     quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
+
+    #     (roll, pitch, yaw) = euler_from_quaternion(quat_list)
+    #     self.pth = math.degrees(yaw)
+
+    def update_odometry(self, msg: Odometry) -> None:
+        ps = PoseStamped()
+        ps.header.frame_id = "/odom"
+        ps.pose = msg.pose.pose
+
+        self.listener.waitForTransform("/map", "/odom", rospy.Time(0), rospy.Duration(1.0))
+
+        map_pose = self.listener.transformPose("/map", ps)
+
+        self.px = map_pose.pose.position.x
+        self.py = map_pose.pose.position.y
+        self.pz = map_pose.pose.position.z
+
+        quat_orig = map_pose.pose.orientation
         quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
-
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = math.degrees(yaw)
+        self.pthQ = quat_orig
 
 
     def smooth_drive(self, distance: float, linear_speed: float):

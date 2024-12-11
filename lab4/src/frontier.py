@@ -16,6 +16,7 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion, Twist
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool
 from math import dist
+import tf
 
 import sys
 import os
@@ -49,6 +50,8 @@ class Frontier:
         self.grid = []
         self.mapgrid = OccupancyGrid()
 
+        self.centroids_list = []
+
         self.px = 0
         self.py = 0
         self.pth = 0
@@ -62,6 +65,9 @@ class Frontier:
 
         self.moved_to_centroid = True
         self.is_centroid_valid = True
+        self.init = True
+
+        self.listener = tf.TransformListener()
     
     def update_path(self, msg: Bool) -> None:
         self.is_centroid_valid = msg.data
@@ -120,10 +126,29 @@ class Frontier:
                 #then we check if we have any more frontiers, if we do not we save the map
 
     def update_odom(self, msg: Odometry) -> None:
-        self.px = msg.pose.pose.position.x
-        self.py = msg.pose.pose.position.y
+        # px = msg.pose.pose.position.x
+        # py = msg.pose.pose.position.y
+        # # print("x: ", self.px, " , y: ", self.py)
         
-        quat_orig = msg.pose.pose.orientation
+        # quat_orig = msg.pose.pose.orientation
+        # quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
+        # (roll, pitch, yaw) = euler_from_quaternion(quat_list)
+        # pth = math.degrees(yaw)
+        # pthQ = quat_orig
+
+        ps = PoseStamped()
+        ps.header.frame_id = "/odom"
+        ps.pose = msg.pose.pose
+
+        self.listener.waitForTransform("/map", "/odom", rospy.Time(0), rospy.Duration(1.0))
+
+        map_pose = self.listener.transformPose("/map", ps)
+
+        self.px = map_pose.pose.position.x
+        self.py = map_pose.pose.position.y
+        self.pz = map_pose.pose.position.z
+
+        quat_orig = map_pose.pose.orientation
         quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = math.degrees(yaw)
@@ -518,6 +543,7 @@ class Frontier:
 
             # Convert the filtered list back to a numpy array
             centroids = np.array(walkable_centroids)
+            
             distances = np.array(walkable_distances)
             sizes = np.array(walkable_sizes)
 
