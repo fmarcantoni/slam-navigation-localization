@@ -581,11 +581,11 @@ class Frontier:
         self.centroid_pub.publish(goal_position_msg)
 
     def save_final_map(self):
-        map_path = os.path.expanduser("/final_map")
+        map_path = os.path.expanduser("~/final_map")
         try:
             rospy.loginfo(f"Saving final map to {map_path}")
             subprocess.run(["rosrun", "map_server", "map_saver", "-f", map_path], check=True)
-            rospy.loginfo("Final map saved successfully.")
+            rospy.loginfo("////////////////////////////////////////////////////////// Final map saved successfully. //////////////////////////////////////////////////////////")
         except subprocess.CalledProcessError as e:
             rospy.logerr(f"Failed to save map: {e}")
 

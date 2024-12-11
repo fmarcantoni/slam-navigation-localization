@@ -40,8 +40,8 @@ class Lab2:
         self.pth = 0
         self.lastFoundIndex = 0     #this is for finding intersections
         self.lookAhead = 0.5
-        self.Kp_turn = 0.04
-        self.Kp_lin = 0.3
+        self.Kp_turn = 0.034
+        self.Kp_lin = 0.22
 
         self.givenDestination = False
         self.oldTime = 0.0
