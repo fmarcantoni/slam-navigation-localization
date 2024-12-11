@@ -21,7 +21,7 @@ class Localization:
         self.final_point = PoseStamped()
         self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
 
-        self.map = self.load_yaml_map('/home/palcolea/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/final_map.yaml', '/home/palcolea/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/final_map.pgm')
+        self.map = self.load_yaml_map('/home/palcolea/final_map.yaml', '/home/palcolea/final_map.pgm')
         rospy.sleep(1)
 
 

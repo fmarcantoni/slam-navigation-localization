@@ -5,7 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /PoseWithCovariance1/Covariance1
-      Splitter Ratio: 0.5
+        - /TF1
+        - /TF1/Frames1
+      Splitter Ratio: 0.5323529243469238
     Tree Height: 559
   - Class: rviz/Selection
     Name: Selection
@@ -218,6 +220,54 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
+    - Class: rviz/TF
+      Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
+      Frame Timeout: 15
+      Frames:
+        All Enabled: false
+        base_footprint:
+          Value: false
+        base_link:
+          Value: false
+        base_scan:
+          Value: true
+        caster_back_link:
+          Value: false
+        imu_link:
+          Value: false
+        map:
+          Value: true
+        odom:
+          Value: true
+        wheel_left_link:
+          Value: false
+        wheel_right_link:
+          Value: false
+      Marker Alpha: 1
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        map:
+          odom:
+            base_footprint:
+              base_link:
+                base_scan:
+                  {}
+                caster_back_link:
+                  {}
+                imu_link:
+                  {}
+                wheel_left_link:
+                  {}
+                wheel_right_link:
+                  {}
+      Update Interval: 0
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -246,7 +296,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 5.409952640533447
+      Distance: 3.1976053714752197
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -283,4 +333,4 @@ Window Geometry:
     collapsed: true
   Width: 1200
   X: 480
-  Y: 33
+  Y: 27

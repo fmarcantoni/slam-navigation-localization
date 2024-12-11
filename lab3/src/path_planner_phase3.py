@@ -27,10 +27,13 @@ class PathPlanner:
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
         plan_path = rospy.Service("plan_path", GetPlan, self.plan_path, buff_size=65536)
-        plan_path_local = rospy.Service("plan_path_local", GetPlan, self.plan_path, buff_size=65536)
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         self.c_space = rospy.Publisher("path_planner/cspace", GridCells, queue_size=10)
+
+        self.penalty = rospy.Publisher("/distances_penalty", OccupancyGrid, queue_size=10)
+
+
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose a the topic names, the message type is GridCells
         self.expanded_cells = rospy.Publisher("path_planner/expanded_cells", GridCells, queue_size=10)
@@ -389,6 +392,92 @@ class PathPlanner:
         # Return None if no walkable cell is found
         return None
 
+
+    def wavefront_distance(self, mapdata: OccupancyGrid) -> np.ndarray:
+        # Get the dimensions of the grid
+        # WARNING: CHANGE THESE LINES TO MAKE SENSE
+        width = mapdata.info.width
+        height = mapdata.info.height
+
+        map_array = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
+        
+        # Initialize the distance grid with a high value
+        distance_grid = np.full((height, width), 999)
+
+        occupied_cells = np.argwhere(map_array == 100)
+
+        if occupied_cells.size == 0:
+            return distance_grid
+        
+        # Create a queue for BFS
+        queue = []
+
+        for (j, i) in occupied_cells:
+            distance_grid[j, i] = 0
+            queue.append((j, i))
+
+        while queue:
+            j, i = queue.pop(0)
+
+            for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                ny, nx = j + dy, i + dx
+                if 0 <= ny < height and 0 <= nx < width:
+                    if distance_grid[ny, nx] > distance_grid[j, i] + 1:
+                        if map_array[ny, nx] > -1:
+                            distance_grid[ny, nx] = distance_grid[j, i] + 1
+                            queue.append([ny, nx])
+        
+        distance_map_with_unknown = np.where(distance_grid == 999, -1, distance_grid)
+        max_distance = np.max(distance_map_with_unknown)
+        
+        flipped_map = np.where(distance_map_with_unknown > -1, (max_distance - distance_map_with_unknown) * 100 / max_distance, distance_map_with_unknown).astype(np.float)
+        flipped_map = np.where(map_array == 1, map_array, flipped_map)
+
+        # vizualization::
+        # grid_cells = GridCells()
+        # grid_cells.cell_width = mapdata.info.resolution
+        # grid_cells.cell_height = mapdata.info.resolution
+        # grid_cells.cells = flipped_map
+        # self.c_space.publish(grid_cells)
+        occupancy_grid_data = flipped_map.flatten().astype(np.int8).tolist()
+        # ## Return the occupancy grid of the distance
+        occupancy_grid = OccupancyGrid()
+        occupancy_grid.info.width = width
+        occupancy_grid.info.height = height
+        occupancy_grid.info.resolution = mapdata.info.resolution
+        occupancy_grid.header.frame_id = "/map"
+        occupancy_grid.data = occupancy_grid_data
+        occupancy_grid.info.origin = mapdata.info.origin
+        self.penalty.publish(occupancy_grid)
+
+        # myGrid = self.to_grid(flipped_map, mapdata)
+        return flipped_map
+
+
+        # # Initialize the queue with all the occupied cells (walls)
+        # for r in range(width):
+        #     for c in range(height):
+        #         if mapdata.data[PathPlanner.grid_to_index(mapdata, (r, c))] == 100:
+        #             distance_grid[r, c] = 0
+        #             queue.append((r, c))
+        
+        # # Directions for the 4-connected grid (up, down, left, right)
+        # neighbors = PathPlanner.any_neighbors_of_8(mapdata, (r, c))
+        
+        # # Perform BFS to calculate distances
+        # while queue:
+        #     r, c = queue.popleft()
+            
+        #     # Explore neighbors
+        #     for neighbor in neighbors:
+        #         if 0 <= neighbor[0] < width and 0 <= neighbor[1] < height:  # Check bounds
+        #             if distance_grid[neighbor] == np.inf:  # Not visited
+        #                 distance_grid[nr, nc] = distance_grid[r, c] + 1
+        #                 queue.append((nr, nc))
+        
+        # return distance_grid
+
+
     # @staticmethod
     # def find_nearest_cspace(mapdata: OccupancyGrid, cell: tuple[int, int]) -> tuple[int, int]:
     #     # Find the closest occupied cell in the C-space
@@ -518,8 +607,9 @@ class PathPlanner:
         occupancy_grid = OccupancyGrid()
         occupancy_grid = mapdata
         occupancy_grid.data = grid
-        return occupancy_grid
 
+        
+        return occupancy_grid
 
     
     def a_star(self, mapdata: OccupancyGrid, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
@@ -543,11 +633,17 @@ class PathPlanner:
                 velocity_msg.angular.x = 0.0
                 velocity_msg.angular.y = 0.0
                 velocity_msg.angular.z = 0.0
-                self.are_we_moving.publish(velocity_msg)
+                # self.are_we_moving.publish(velocity_msg)
 
-                bool_msg = Bool()
-                bool_msg.data = True
-                self.arrived_to_goal.publish(bool_msg)
+                path_msg = Bool()
+                path_msg.data = False
+                self.path_found.publish(path_msg)
+
+
+
+                # bool_msg = Bool()
+                # bool_msg.data = True
+                # self.arrived_to_goal.publish(bool_msg)
                 return []
 
         # Validate goal position
@@ -566,11 +662,15 @@ class PathPlanner:
                 velocity_msg.angular.x = 0.0
                 velocity_msg.angular.y = 0.0
                 velocity_msg.angular.z = 0.0
-                self.are_we_moving.publish(velocity_msg)
+                # self.are_we_moving.publish(velocity_msg)
 
-                bool_msg = Bool()
-                bool_msg.data = True
-                self.arrived_to_goal.publish(bool_msg)
+                path_msg = Bool()
+                path_msg.data = False
+                self.path_found.publish(path_msg)
+
+                # bool_msg = Bool()
+                # bool_msg.data = True
+                # self.arrived_to_goal.publish(bool_msg)
                 return []
 
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
@@ -583,6 +683,8 @@ class PathPlanner:
         cost_so_far = {}    
         came_from[truncated_start] = None
         cost_so_far[truncated_start] = 0
+
+        distance_map = self.wavefront_distance(mapdata)
 
         # if mapdata.data[truncated_start[1] * mapdata.info.width + truncated_start[0]] == 100:
         #     rospy.loginfo("Start position is an obstacle.")
@@ -598,20 +700,25 @@ class PathPlanner:
             # print("---------------- current: ", current)
             # print("---------------- truncated_goal: ", truncated_goal)
             if current == truncated_goal:
-                print("---------------------------------------------------reached goal")
+                print("---------------------------------------------------reached goal when creating path")
                 break
 
             for next in PathPlanner.neighbors_of_8(mapdata, current):
-                penalty = PathPlanner.penalty_for_cell_next_to_cspace(mapdata, next)  # This will return the varying penalty
+                #penalty = PathPlanner.penalty_for_cell_next_to_cspace(mapdata, next)  # This will return the varying penalty
+                temporary = (next[1], next[0])
+                penalty = distance_map[temporary]
+                print("penalty", penalty)
+                if penalty != -1 or penalty != 100: 
+                    print("penalty != -1 & 100", penalty)
 
                 if came_from[current] is not None:
+                    print("came from current is not none")
                     previous_direction = PathPlanner.calculate_direction(came_from[current], current)
                     current_direction = PathPlanner.calculate_direction(current, next)
-                    if previous_direction != current_direction:
-                        penalty += 0.01 # add a small penalty when we have a change in direction
+                    # if previous_direction != current_direction:
+                    #     penalty += 0.01 # add a small penalty when we have a change in direction
 
-                new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next) + penalty
-
+                new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next) + (penalty**2)
 
                 if next not in cost_so_far or new_cost < cost_so_far[next]:
                     cost_so_far[next] = new_cost
@@ -651,15 +758,16 @@ class PathPlanner:
             velocity_msg.angular.x = 0.0
             velocity_msg.angular.y = 0.0
             velocity_msg.angular.z = 0.0
-            self.are_we_moving.publish(velocity_msg)
-
-            bool_msg = Bool()
-            bool_msg.data = True
-            self.arrived_to_goal.publish(bool_msg)
+            # self.are_we_moving.publish(velocity_msg)
 
             path_found_msg = Bool()
             path_found_msg.data = False
             self.path_found.publish(path_found_msg)
+
+            # bool_msg = Bool()
+            # bool_msg.data = True
+            # self.arrived_to_goal.publish(bool_msg)
+
 
         
         path.reverse()
@@ -741,13 +849,17 @@ class PathPlanner:
         Internally uses A* to plan the optimal path.
         :param req 
         """
+        rospy.loginfo("The path planner node caught the centroid")
         ## Request the map
         ## In case of error, return an empty path
         mapdata = PathPlanner.request_map()
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
+        rospy.loginfo("about to create cspace")
         cspacedata = self.calc_cspace(mapdata, 3)
+        rospy.loginfo("cspace done")
+
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
