@@ -542,11 +542,17 @@ class PathPlanner:
                 velocity_msg.angular.x = 0.0
                 velocity_msg.angular.y = 0.0
                 velocity_msg.angular.z = 0.0
-                self.are_we_moving.publish(velocity_msg)
+                # self.are_we_moving.publish(velocity_msg)
 
-                bool_msg = Bool()
-                bool_msg.data = True
-                self.arrived_to_goal.publish(bool_msg)
+                path_msg = Bool()
+                path_msg.data = False
+                self.path_found.publish(path_msg)
+
+
+
+                # bool_msg = Bool()
+                # bool_msg.data = True
+                # self.arrived_to_goal.publish(bool_msg)
                 return []
 
         # Validate goal position
@@ -565,11 +571,15 @@ class PathPlanner:
                 velocity_msg.angular.x = 0.0
                 velocity_msg.angular.y = 0.0
                 velocity_msg.angular.z = 0.0
-                self.are_we_moving.publish(velocity_msg)
+                # self.are_we_moving.publish(velocity_msg)
 
-                bool_msg = Bool()
-                bool_msg.data = True
-                self.arrived_to_goal.publish(bool_msg)
+                path_msg = Bool()
+                path_msg.data = False
+                self.path_found.publish(path_msg)
+
+                # bool_msg = Bool()
+                # bool_msg.data = True
+                # self.arrived_to_goal.publish(bool_msg)
                 return []
 
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
@@ -650,15 +660,16 @@ class PathPlanner:
             velocity_msg.angular.x = 0.0
             velocity_msg.angular.y = 0.0
             velocity_msg.angular.z = 0.0
-            self.are_we_moving.publish(velocity_msg)
-
-            bool_msg = Bool()
-            bool_msg.data = True
-            self.arrived_to_goal.publish(bool_msg)
+            # self.are_we_moving.publish(velocity_msg)
 
             path_found_msg = Bool()
             path_found_msg.data = False
             self.path_found.publish(path_found_msg)
+
+            # bool_msg = Bool()
+            # bool_msg.data = True
+            # self.arrived_to_goal.publish(bool_msg)
+
 
         
         path.reverse()

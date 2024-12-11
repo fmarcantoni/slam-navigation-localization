@@ -571,9 +571,6 @@ class Lab2:
         finalPosition = path[-1]
         potentiallyFollow = finalPosition
         if self.distance_points(finalPosition, [self.px, self.py]) < self.lookAhead:
-            msg = Bool()
-            msg.data = True
-            self.arrived_to_goal.publish(msg)
 
             velocity_msg = Twist()
             velocity_msg.linear.x = 0.0
@@ -584,8 +581,9 @@ class Lab2:
             velocity_msg.angular.z = 0.0
             self.are_we_moving.publish(velocity_msg)
 
-
-
+            msg = Bool()
+            msg.data = True
+            self.arrived_to_goal.publish(msg)
 
             print("Has reached the destination!")
             print(finalPosition)
