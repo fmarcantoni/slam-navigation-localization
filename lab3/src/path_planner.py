@@ -658,7 +658,7 @@ class PathPlanner:
 
             path_found_msg = Bool()
             path_found_msg.data = False
-            self.path_found.publish(bool_msg)
+            self.path_found.publish(path_found_msg)
 
         
         path.reverse()

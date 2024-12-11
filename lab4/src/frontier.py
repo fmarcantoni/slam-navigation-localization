@@ -65,6 +65,11 @@ class Frontier:
     
     def update_path(self, msg: Bool) -> None:
         self.is_centroid_valid = msg.data
+        print("-----------------------------------")
+        print("-----------------------------------")
+        print("      is centroid valid = ", msg.data)
+        print("-----------------------------------")
+        print("-----------------------------------")
 
     def update_frontiers(self, msg: Twist) -> None:
         #if we are not we update the frontiers
@@ -350,7 +355,8 @@ class Frontier:
             centroid_x = np.mean(x_list)
             centroid_y = np.mean(y_list)
             
-            centroids.append(Point(x = centroid_x, y = centroid_y, z = 0))
+            # centroids.append(Point(x = centroid_x, y = centroid_y, z = 0))
+            centroids.append([centroid_x, centroid_y])
         return centroids
 
     # def closest_walkable_cell(self, grid: np.ndarray, start: tuple[int, int], tolerance: int) -> tuple[int, int]:
@@ -449,7 +455,7 @@ class Frontier:
         # Return None if no walkable cell is found
         return None
 
-    def choose_centroid(self, zero_crossings: np.ndarray, mapdata: OccupancyGrid) -> Point:
+    def choose_centroid(self, zero_crossings: np.ndarray, mapdata: OccupancyGrid) -> tuple:
         frontiers = self.create_frontiers(zero_crossings)
         # self.publish_frontier(frontiers)
 
@@ -472,7 +478,7 @@ class Frontier:
             # Vectorized distance calculation
             #distances = np.linalg.norm(centroids - np.array([self.px, self.py]), axis=1)
 
-            centroids_array = np.array([[point.x, point.y] for point in centroids])
+            centroids_array = np.array([[point[0], point[1]] for point in centroids])
             distances = np.linalg.norm(centroids_array - np.array([self.px, self.py]), axis=1)
 
             walkable_centroids = []
@@ -523,12 +529,13 @@ class Frontier:
             beta = 0.5
             heuristic = alpha * distances - beta * sizes
 
-            if not self.path_found:
-                centroids.pop(np.argmin(heuristic))
+            if not self.is_centroid_valid:
+                print("------------- path is not found, pop the centroid")
+                centroids = np.delete(centroids, np.argmin(heuristic), axis=0)
+
                 
             rospy.loginfo("----------------------------------------------------------------------------centroids chosen")
             return centroids[np.argmin(heuristic)]
-
 
     def publish_frontier(self, frontiers: list[list[tuple]]) -> None:
         frontier_msg = GridCells()
@@ -552,8 +559,7 @@ class Frontier:
         frontier_msg.cells = compiled_frontier
         self.frontier_viz.publish(frontier_msg)
 
-
-    def publish_centroid(self, centroid: Point) -> None:
+    def publish_centroid(self, centroid: tuple) -> None:
         goal_position_msg = PoseStamped()
         # goal_position.header = rospy.Time.now()
         # goal_position.header.stamp = rospy.Time.now()
@@ -575,7 +581,7 @@ class Frontier:
         self.centroid_pub.publish(goal_position_msg)
 
     def save_final_map(self):
-        map_path = "~/final_map"
+        map_path = os.path.expanduser("/final_map")
         try:
             rospy.loginfo(f"Saving final map to {map_path}")
             subprocess.run(["rosrun", "map_server", "map_saver", "-f", map_path], check=True)
