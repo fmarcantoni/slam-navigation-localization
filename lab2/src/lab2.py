@@ -9,6 +9,8 @@ from geometry_msgs.msg import PoseStamped, PointStamped, Quaternion
 from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool
+from sensor_msgs.msg import LaserScan
+
 
 class Lab2:
 
@@ -35,6 +37,10 @@ class Lab2:
 
         rospy.Subscriber("/path_planner/actual_path_viz", Path, self.go_to_destination)
 
+
+        #for avoiding wall collisions
+        self.scan_laser = rospy.Subscriber("/scan", LaserScan, self.backoff_wall)
+
         #init attributes
         self.px = 0
         self.py = 0
@@ -59,6 +65,39 @@ class Lab2:
         self.pathCoordinates = []
 
 
+    def backoff_wall(self, msg: LaserScan) -> None:
+        """
+        Checks if the robot is facing a wall that is too close.
+        If so, backs off for a short time and stops.
+        """
+        front_angle = 0  # Assuming 0 radians corresponds to the front of the robot
+        angle_range = math.pi / 2.5  # Angular range (in radians) to consider the "front"
+    
+        # Calculate indices in the LaserScan ranges array for the front
+        start_angle = front_angle - angle_range / 2
+        end_angle = front_angle + angle_range / 2
+
+        # Determine the corresponding indices in the LaserScan ranges
+        start_index = int((start_angle - msg.angle_min) / msg.angle_increment)
+        end_index = int((end_angle - msg.angle_min) / msg.angle_increment)
+
+        # Clip indices to stay within the bounds of the ranges array
+        start_index = max(0, start_index)
+        end_index = min(len(msg.ranges) - 1, end_index)
+
+        # Check if any reading in the front range is too close
+        for i in range(start_index, end_index + 1):
+            if msg.ranges[i] > 0 and msg.ranges[i] <= 0.25:  # Threshold distance in meters
+                rospy.loginfo("Wall detected in front, backing off...")
+                self.send_speed(-0.2, 0.0)  # Backward speed
+                rospy.sleep(0.25)  # Move backward for 1 second
+                self.send_speed(0.0, 0.0)  # Stop the robot
+
+                # Publish "arrived_to_goal" as True
+                msg = Bool()
+                msg.data = True
+                self.arrived_to_goal.publish(msg)
+                return  # Exit after handling the close wall
 
     def send_speed(self, linear_speed: float, angular_speed: float):
         """

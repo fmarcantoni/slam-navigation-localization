@@ -176,8 +176,8 @@ class Frontier:
 
         #capture initial poses  
         if self.init:
-            self.init_tuple[0] = self.px
-            self.init_tuple[1] = self.py
+            self.init_tuple[0] = int(self.px)
+            self.init_tuple[1] = int(self.py)
             print(" ^^^^^^^^^^^^^^^^^^^^^^^ This is when it is collecting the initial position: ", self.init_tuple[0], ", ", self.init_tuple[1])
             
             self.init = False
@@ -662,8 +662,13 @@ class Frontier:
             except subprocess.CalledProcessError as e:
                 rospy.logerr(f"Failed to save map: {e}")
             
-            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@ we are done so we are going to the initial x and y: ", self.init_x, ", ", self.init_y)
-            self.publish_centroid([self.init_x, self.init_y])
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@ we are done so we are going to the initial x and y: ", self.init_tuple[0], ", ", self.init_tuple[1])
+            grid_init_point = Point()
+            grid_init_point.x = self.init_tuple[0]
+            grid_init_point.y = self.init_tuple[1]
+            grid_init_point.z = 0
+            world_initial_pose = PathPlanner.world_to_grid(self.mapgrid, grid_init_point)
+            self.publish_centroid(world_initial_pose)
 
             self.map_save = True
 
