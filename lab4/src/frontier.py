@@ -52,7 +52,7 @@ class Frontier:
 
         self.centroids_list = []
         self.heuristic = []
-        self.first_time = True
+        self.first_time = True #we use this to publish the centroids and frontiers for the first time 
 
         self.px = 0
         self.py = 0
@@ -67,7 +67,9 @@ class Frontier:
 
         self.moved_to_centroid = True
         self.is_centroid_valid = True
-        self.init = True
+        self.init = True    #used to capture initial pose
+        self.init_tuple = [0, 0]
+        self.map_save = False #to only save the map once
 
         self.listener = tf.TransformListener()
     
@@ -171,6 +173,14 @@ class Frontier:
         (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = math.degrees(yaw)
         self.pthQ = quat_orig
+
+        #capture initial poses  
+        if self.init:
+            self.init_tuple[0] = self.px
+            self.init_tuple[1] = self.py
+            print(" ^^^^^^^^^^^^^^^^^^^^^^^ This is when it is collecting the initial position: ", self.init_tuple[0], ", ", self.init_tuple[1])
+            
+            self.init = False
     
     def map_callback(self, mapdata: OccupancyGrid) -> None:
         # https://www.netlib.org/utk/lsi/pcwLSI/text/node433.html
@@ -642,13 +652,20 @@ class Frontier:
         self.centroid_pub.publish(goal_position_msg)
 
     def save_final_map(self):
-        map_path = os.path.expanduser("~/final_map")
-        try:
-            rospy.loginfo(f"Saving final map to {map_path}")
-            subprocess.run(["rosrun", "map_server", "map_saver", "-f", map_path], check=True)
-            rospy.loginfo("////////////////////////////////////////////////////////// Final map saved successfully. //////////////////////////////////////////////////////////")
-        except subprocess.CalledProcessError as e:
-            rospy.logerr(f"Failed to save map: {e}")
+        
+        if not self.map_save:
+            map_path = os.path.expanduser("~/final_map")
+            try:
+                rospy.loginfo(f"Saving final map to {map_path}")
+                subprocess.run(["rosrun", "map_server", "map_saver", "-f", map_path], check=True)
+                rospy.loginfo("////////////////////////////////////////////////////////// Final map saved successfully. //////////////////////////////////////////////////////////")
+            except subprocess.CalledProcessError as e:
+                rospy.logerr(f"Failed to save map: {e}")
+            
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@ we are done so we are going to the initial x and y: ", self.init_x, ", ", self.init_y)
+            self.publish_centroid([self.init_x, self.init_y])
+
+            self.map_save = True
 
     def publish_map(self, map):
         pass
