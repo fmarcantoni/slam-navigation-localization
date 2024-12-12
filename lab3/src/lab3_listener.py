@@ -14,9 +14,11 @@ class Lab3_Listener:
     
     def __init__(self):
         """
-        Class constructor
+        Class constructor for the initialization of the Lab3_Listener node.
         """
         rospy.init_node('Lab3_Listener')
+
+        # Create Subscribers in order to activate the service and to update the odometry values.
         rospy.Subscriber('/odom', Odometry, self.update_odometry)
         rospy.Subscriber('/move_base_simple/centroid_goal', PoseStamped, self.activate_service)
 
