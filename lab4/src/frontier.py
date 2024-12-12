@@ -45,6 +45,7 @@ class Frontier:
         self.occupied_viz = rospy.Publisher("/occupied", GridCells, queue_size=10)
         self.unknown_viz = rospy.Publisher("/unknown", GridCells, queue_size=10)
         self.map_pub = rospy.Publisher("/map/Zeros", OccupancyGrid, queue_size=10)
+        self.map_save_pub = rospy.Publisher("/map/saved", Bool, queue_size=10)
         
         # self.frontier_markers_viz = rospy.Publisher("/frontier_markers", MarkerArray, queue_size=10)
         self.grid = []
@@ -76,8 +77,11 @@ class Frontier:
         rospy.sleep(1.0)
     
     def update_path(self, msg: Bool) -> None:
+        print("------------------------------------------UPDATE PATH CALLED, the message (is centroid valid) is: ", msg.data)
+        
         if msg.data:
             pass
+            print("------------- path is found so nothing happens")
         else:
             print("------------- path is not found, pop the centroid")
             if len(self.centroids_list):
@@ -85,13 +89,6 @@ class Frontier:
                 self.heuristic = np.delete(self.heuristic, np.argmin(self.heuristic), axis=0)
                 self.publish_centroid(self.centroids_list[np.argmin(self.heuristic)])
 
-
-        # self.is_centroid_valid = msg.data
-        print("-----------------------------------")
-        print("-----------------------------------")
-        print("      is centroid valid = ", msg.data)
-        print("-----------------------------------")
-        print("-----------------------------------")
 
     def update_frontiers(self, msg: Twist) -> None:
         rospy.loginfo("UPDATE_FRONTIERS GETS CALLED")
@@ -376,7 +373,7 @@ class Frontier:
             if not visited[i, j]:
                 frontier = self.bfs(i, j, zero_crossings, visited)
                 # print(len(frontier))   
-                if len(frontier) > 10:
+                if len(frontier) > 15:
                     frontiers.append(frontier)
                              
         rospy.loginfo("frontiers created:")
@@ -607,8 +604,8 @@ class Frontier:
             rospy.loginfo("No walkable centroids found.")
             return None
 
-        alpha = 0.2
-        beta = 0.8
+        alpha = 0.4
+        beta = 0.6
         heuristic = alpha * distances - beta * sizes
         self.heuristic = heuristic
 
@@ -686,6 +683,10 @@ class Frontier:
             self.publish_centroid(world_initial_pose)
 
             self.map_save = True
+            
+            msg = Bool()
+            msg.data = True
+            self.map_save_pub.publish(msg)
 
     def publish_map(self, map):
         pass
