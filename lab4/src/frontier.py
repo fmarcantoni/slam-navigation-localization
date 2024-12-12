@@ -24,10 +24,9 @@ import os
 # Add the path to lab3/src to the Python search path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../lab3/src')))
 
+#import path planner to use the methods from that script, like is_cell_walkable and stuff
 from path_planner import PathPlanner
 from queue import Queue
-
-# from lab3.src.path_planner import PathPlanner
 
 
 class Frontier:
