@@ -488,7 +488,6 @@ class PathPlanner:
 
         return path_message
 
-
         
     def plan_path(self, msg):
         """
@@ -507,9 +506,7 @@ class PathPlanner:
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
         path  = self.a_star(cspacedata, start, goal)
-        ## Optimize waypoints
-        # waypoints = PathPlanner.optimize_path(path)
-        ## Return a Path message
+
         return self.path_to_message(mapdata, path)
 
 

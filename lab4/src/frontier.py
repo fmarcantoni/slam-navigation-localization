@@ -59,27 +59,13 @@ class Frontier:
         grid = np.array(mapdata.data).reshape((mapdata.info.height, mapdata.info.width))
         binary_map = self.map_preprocess(grid)
         
-        # Step 2: Gaussian smoothing
-        smoothed = self.map_smooth(binary_map)
-        
-        # self.visualizationMap(smoothed)
+        # smoothed = self.map_smooth(binary_map)
+        # laplacian = self.compute_laplacian(smoothed)
 
-        # Step 3: Compute Laplacian
-        laplacian = self.compute_laplacian(smoothed)
-        
-        # # Step 3.5: Morphological Closing
-        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, 3)
-        # laplacian_closed = cv2.morphologyEx(laplacian, cv2.MORPH_CLOSE, kernel)
-        
-        # Step 4: Detect zero crossings
-        # edges = self.detect_zero_crossings(laplacian_closed)
+        # Step 2: Find edges
         edges = self.detect_zero_crossings(binary_map)
 
-        # Step 4.1 Publish 0-crossing map
-        # crossing_map = self.publish_map()
-
-
-        # Step 5: Choose Centroid
+        # Step 3: Choose Centroid
         self.choose_centroid(edges)
         
     
@@ -145,36 +131,21 @@ class Frontier:
         empty_msg.cells = compiled_frontier_empty
         self.empty_viz.publish(empty_msg)
 
+
     def map_smooth(self, bin_map: np.ndarray) -> np.ndarray:
         smooth_map = cv2.GaussianBlur(bin_map, (3, 3), 0.011)  # Kernel size = 3, Sigma = 1.0
         return smooth_map
-        
-        
-        # http://demofox.org/gauss.html
-        # Sigma = 1.0, Support = 0.4
-        # getGaussianKernel(int ksize, sigma, ktype = CV_32F)
-        # kernel = np.array([
-        #     [0.0038, 0.0150, 0.0238, 0.0150, 0.0038],
-        #     [0.0150, 0.0599, 0.0949, 0.0599, 0.0150],
-        #     [0.0238, 0.0949, 0.1503, 0.0949, 0.0238],
-        #     [0.0150, 0.0599, 0.0949, 0.0599, 0.0150],
-        #     [0.0038, 0.0150, 0.0238, 0.0150, 0.0038]], dtype = np.float32)
-        
-        # smooth_map = cv2.filter2D(bin_map, -1, kernel)
-        # return smooth_map
+    
     
     def compute_laplacian(self, smooth_map: np.ndarray) -> np.ndarray:
         # https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#gad78703e4c8fe703d479c1860d76429e6
-        
         laplacian = cv2.Laplacian(smooth_map, ddepth = cv2.CV_64F)
         return laplacian
     
+    
     def detect_zero_crossings(self, binary_map: np.ndarray) -> np.ndarray:
         zero_crossings = np.zeros_like(binary_map, dtype=np.uint8)
-        # kernel = np.array([[1, -1], [-1, 1]], dtype=np.float32)
-        # crossings_map = cv2.filter2D(laplacian, -1, kernel)
-        # zero_crossings[np.abs(crossings_map) > 0] = 255
-        # return zero_crossings
+
         for i in range(1, zero_crossings.shape[0]-1):
             for j in range(1, zero_crossings.shape[1]-1):
                 # Zero-crossing detection condition
@@ -184,14 +155,12 @@ class Frontier:
                     binary_map[i, j] > 100 and binary_map[i, j - 1] < 100 or 
                     binary_map[i, j] < 100 and binary_map[i, j - 1] > 100):    
 
-                    # if (binary_map[i, j] == 0):
                     zero_crossings[i, j] = 255  # Mark as edge
         return zero_crossings.T
     
     def create_frontiers(self, zero_crossings: np.ndarray) -> list[list[tuple]]:
         frontiers = []
-        # width, height = zero_crossings.shape
-        # visited = np.zeros((width, height), dtype=bool)
+
         visited = np.zeros_like(zero_crossings, dtype=bool)
         
         frontier_points = np.argwhere(zero_crossings == 255)
@@ -201,8 +170,7 @@ class Frontier:
                 frontier = self.bfs(i, j, zero_crossings, visited)
                 print(len(frontier))   
                 if len(frontier) > 5:
-                    frontiers.append(frontier)
-                             
+                    frontiers.append(frontier)         
 
         return frontiers
     
