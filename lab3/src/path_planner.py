@@ -624,7 +624,7 @@ class PathPlanner:
         ):
             rospy.loginfo("Start position is invalid. Searching for the closest walkable cell...")
             start = PathPlanner.find_closest_walkable_cell(mapdata, start)
-            if start is None:
+            if not start:
                 rospy.loginfo("No valid start position found.")
                 velocity_msg = Twist()
                 velocity_msg.linear.x = 0.0
@@ -637,6 +637,7 @@ class PathPlanner:
 
                 path_msg = Bool()
                 path_msg.data = False
+                print("next step is to publish false for the path found")
                 self.path_found.publish(path_msg)
 
 
@@ -666,6 +667,7 @@ class PathPlanner:
 
                 path_msg = Bool()
                 path_msg.data = False
+                print("next step is to publish false for the path found")
                 self.path_found.publish(path_msg)
 
                 # bool_msg = Bool()
@@ -762,6 +764,7 @@ class PathPlanner:
 
             path_found_msg = Bool()
             path_found_msg.data = False
+            print("The following step is to send to path found false because there can be no path")
             self.path_found.publish(path_found_msg)
 
             # bool_msg = Bool()
@@ -857,7 +860,7 @@ class PathPlanner:
             return Path()
         ## Calculate the C-space and publish it
         rospy.loginfo("about to create cspace")
-        cspacedata = self.calc_cspace(mapdata, 3)
+        cspacedata = self.calc_cspace(mapdata, 2)
         rospy.loginfo("cspace done")
 
         ## Execute A*

@@ -39,7 +39,8 @@ class Lab2:
 
 
         #for avoiding wall collisions
-        self.scan_laser = rospy.Subscriber("/scan", LaserScan, self.backoff_wall)
+        # self.scan_laser = rospy.Subscriber("/scan", LaserScan, self.backoff_wall)
+        self.saved_map_sub = rospy.Subscriber("/map/saved", Bool, self.update_going_home)
 
         #init attributes
         self.px = 0
@@ -56,15 +57,20 @@ class Lab2:
 
 
         self.lastFoundIndex = 0     #this is for finding intersections
-        self.lookAhead = 0.3
-        self.Kp_turn = 0.013
+        self.lookAhead = 0.10
+        self.Kp_turn = 0.01
         self.Kp_lin = 0.2
+
+        self.going_home = False
 
         self.givenDestination = False
         self.oldTime = 0.0
         self.pathCoordinates = []
 
         rospy.sleep(1.0)
+
+    def update_going_home(self, msg: Bool):
+        self.going_home = msg.data
 
 
     def backoff_wall(self, msg: LaserScan) -> None:
@@ -73,7 +79,7 @@ class Lab2:
         If so, backs off for a short time and stops.
         """
         front_angle = 0  # Assuming 0 radians corresponds to the front of the robot
-        angle_range = math.pi / 2  # Angular range (in radians) to consider the "front"
+        angle_range = math.pi / 4  # Angular range (in radians) to consider the "front"
     
         # Calculate indices in the LaserScan ranges array for the front
         start_angle = front_angle - angle_range / 2
@@ -89,12 +95,13 @@ class Lab2:
 
         # Check if any reading in the front range is too close
         for i in range(start_index, end_index + 1):
-            if msg.ranges[i] > 0 and msg.ranges[i] <= 0.15:  # Threshold distance in meters
+            if msg.ranges[i] > 0 and msg.ranges[i] <= 0.2:  # Threshold distance in meters
                 rospy.loginfo("Wall detected in front, backing off...")
-                self.send_speed(-0.2, 0.6)  # Backward speed
-                rospy.sleep(1.5)  # Move backward for 1 second
                 self.send_speed(0.0, 0.0)  # Stop the robot
-
+                rospy.sleep(0.5)
+                self.send_speed(-0.1, 0)  # Backward speed
+                rospy.sleep(2)  # Move backward for 1 second
+                self.send_speed(0.0, 0.0)  # Stop the robot
 
 
                 # Publish "arrived_to_goal" as True
@@ -105,9 +112,9 @@ class Lab2:
                 #========================================================================================================================================
                 #========================================================================================================================================
                 #=======================================================================================================================================
-                msg = Bool()
-                msg.data = True
-                self.arrived_to_goal.publish(msg)
+                # msg = Bool()
+                # msg.data = True
+                # self.arrived_to_goal.publish(msg)
                 return  # Exit after handling the close wall
 
     def send_speed(self, linear_speed: float, angular_speed: float):
@@ -621,7 +628,8 @@ class Lab2:
 
         finalPosition = path[-1]
         potentiallyFollow = finalPosition
-        if self.distance_points(finalPosition, [self.px, self.py]) < self.lookAhead:
+        if self.distance_points(finalPosition, [self.px, self.py]) < 0.2:
+            
 
             velocity_msg = Twist()
             velocity_msg.linear.x = 0.0
@@ -690,6 +698,9 @@ class Lab2:
             #only do goal point search if given a destination
             if self.givenDestination:
                 self.goal_pt_search(self.pathCoordinates)
+
+            if self.going_home and not self.givenDestination:
+                break
         # rospy.spin()
 
 if __name__ == '__main__':
