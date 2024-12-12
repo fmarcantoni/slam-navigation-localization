@@ -1,14 +1,26 @@
 <launch>
-<arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
   <arg name="maze" default="turtlebot"/> <!-- change to "final_maze" for a more open/"easy" map -->
 
 
   <include file="$(find lab4)/launch/world_sim.launch">
-    <arg name="model" value="$(arg model)"/>
-    <arg name="world" value="$(arg maze)"/>
+    <arg name="model" value="burger"/>
+    <arg name="world" value="turtlebot"/>
   </include>
 
   <!-- Turtlebot3  -->
+
+  <!-- Empty Gazebo World  -->
+  <!-- <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch" /> -->
+  
+  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
+    <param name="map_update_interval" value="5.0" />
+  </node>
+
   <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch" />
+<!-- 
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find lab4)/rviz/frontier_exploration.rviz" /> -->
+
+  <node name="Frontier_Exp" pkg="lab4" type="frontier.py" output="screen" />
 
 </launch>
