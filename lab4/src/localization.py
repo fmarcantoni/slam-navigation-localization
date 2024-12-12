@@ -6,6 +6,7 @@ from nav_msgs.msg import OccupancyGrid
 import yaml
 from PIL import Image
 
+
 class Localization:
     
     def __init__(self):
@@ -21,7 +22,7 @@ class Localization:
         self.final_point = PoseStamped()
         self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
 
-        self.map = self.load_yaml_map('/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini2.yaml', '/home/opvancampen/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/larger_mini2.pgm')
+        self.map = self.load_yaml_map('/home/palcolea/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/final_map.yaml', '/home/palcolea/catkin_ws/src/RBE3002_B24_Team02/lab4/maps/final_map.pgm')
         rospy.sleep(1)
 
 
@@ -31,8 +32,8 @@ class Localization:
         position_variance = covariance[0] + covariance[7]
         orientation_variance = covariance[35]
 
-        position_threshold = 0.01  # meters
-        orientation_threshold = 0.02# radians
+        position_threshold = 0.05  # meters
+        orientation_threshold = 0.05# radians
         var_msg = Vector3()
         var_msg.x = position_variance
         var_msg.y = orientation_variance

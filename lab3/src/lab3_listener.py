@@ -2,13 +2,15 @@
 from __future__ import annotations
 from queue import PriorityQueue
 
+import math
 import rospy
 from nav_msgs.msg import Odometry
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
-from geometry_msgs.msg import Point, Pose, PoseStamped
+from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool
+import tf
 
 #!/usr/bin/env pythons
 class Lab3_Listener:
@@ -18,17 +20,44 @@ class Lab3_Listener:
         Class constructor
         """
         rospy.init_node('Lab3_Listener')
-        rospy.Subscriber('/odom', Odometry, self.update_odometry)
+        rospy.Subscriber('/odom', Odometry, self.update_odom)
         rospy.Subscriber('/move_base_simple/centroid_goal', PoseStamped, self.activate_service)
         rospy.Subscriber('/move_base_simple/localization_goal', PoseStamped, self.activate_service_local)
         rospy.Subscriber("/localization_ready", Bool, self.readyCallback)
         self.ready = False
         self.local_goal = PoseStamped()
+        
+        self.listener = tf.TransformListener()
 
         # attributes
         Lab3_Listener.px = 0
         Lab3_Listener.py = 0
         Lab3_Listener.quart = 0
+
+        self.pthQ = Quaternion()
+        self.pthQ.x = 0
+        self.pthQ.y = 0
+        self.pthQ.z = 1
+        self.pthQ.w = 1
+
+    def update_odom(self, msg: Odometry) -> None:
+        ps = PoseStamped()
+        ps.header.frame_id = "/odom"
+        ps.pose = msg.pose.pose
+
+        self.listener.waitForTransform("/map", "/odom", rospy.Time(0), rospy.Duration(0.1))
+
+        map_pose = self.listener.transformPose("/map", ps)
+
+        self.px = map_pose.pose.position.x
+        self.py = map_pose.pose.position.y
+        self.pz = map_pose.pose.position.z
+
+        quat_origin = map_pose.pose.orientation
+        quat_list = [quat_origin.x, quat_origin.y, quat_origin.z, quat_origin.w]
+        (roll, pitch, yaw) = euler_from_quaternion(quat_list)
+        self.pth = math.degrees(yaw)
+        self.pthQ = quat_origin
     
     def readyCallback(self, msg:Bool):
         self.ready = msg.data
