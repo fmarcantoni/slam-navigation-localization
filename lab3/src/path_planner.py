@@ -717,8 +717,6 @@ class PathPlanner:
                     print("came from current is not none")
                     previous_direction = PathPlanner.calculate_direction(came_from[current], current)
                     current_direction = PathPlanner.calculate_direction(current, next)
-                    # if previous_direction != current_direction:
-                    #     penalty += 0.01 # add a small penalty when we have a change in direction
 
                 new_cost = cost_so_far[current] + PathPlanner.euclidean_distance(current, next) + (penalty**2)
 
@@ -737,7 +735,6 @@ class PathPlanner:
 
         # gets path from dictionary
         path = []
-        # current = truncated_goal
         if current == truncated_goal:
             bool_msg = Bool()
             bool_msg.data = True
@@ -766,12 +763,6 @@ class PathPlanner:
             path_found_msg.data = False
             print("The following step is to send to path found false because there can be no path")
             self.path_found.publish(path_found_msg)
-
-            # bool_msg = Bool()
-            # bool_msg.data = True
-            # self.arrived_to_goal.publish(bool_msg)
-
-
         
         path.reverse()
 
@@ -815,16 +806,6 @@ class PathPlanner:
         new_path.append(path[-1])
 
         return new_path
-
-    # @staticmethod
-    # def shorten_path(path: list[tuple[int, int]]) -> list[tuple[int, int]]:
-    #     new_path_length = len(path)
-    #     shorter_path = []
-
-    #     for i in range(int(new_path_length/2)):
-    #         shorter_path.append(path[i])
-
-    #     return shorter_path
         
 
     def path_to_message(self, mapdata: OccupancyGrid, path: list[tuple[int, int]]) -> Path:
