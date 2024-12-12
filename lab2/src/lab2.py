@@ -3,9 +3,11 @@ from __future__ import annotations
 import rospy
 import math
 import angles
+
 import tf
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped, PointStamped, Quaternion
+
 from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool
@@ -242,6 +244,7 @@ class Lab2:
 
     def distance_points(self, point1, point2) -> float:
         """
+
         Helper method that calculates the euclidean distance between two points
         :param point1, and point2, tuples
         :returns a float of the euclidean distance

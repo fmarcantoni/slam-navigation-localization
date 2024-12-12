@@ -1,0 +1,10 @@
+<launch>
+  <!-- Empty Gazebo World -->
+  <!-- <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch" /> -->
+
+  <!-- Tutlebot RViz -->
+  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_model.launch" />
+    
+    <!-- Python Node -->
+    <node pkg="lab2" name="lab2" type="lab2.py"> </node>
+</launch>
