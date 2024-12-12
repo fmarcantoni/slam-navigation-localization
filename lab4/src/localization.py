@@ -19,13 +19,19 @@ class Localization:
         self.localization_ready_pub = rospy.Publisher('/localization_ready', Bool, queue_size=10)  # *****NEED LAB 2 TO SUBSCRIBE TO THIS*****
         self.final_point_pub = rospy.Publisher("/move_base_simple/localization_goal", PoseStamped, queue_size=10)
         self.final_point = PoseStamped()
-        self.variance_pub = rospy.Publisher("/variance", Vector3, queue_size=10)
 
         self.map = self.load_yaml_map('/home/palcolea/final_map.yaml', '/home/palcolea/final_map.pgm')
         rospy.sleep(1)
 
 
     def amcl_callback(self, msg: PoseWithCovarianceStamped):
+        """
+        Callback function for when amcl publishes Pose estimates
+
+        Args:
+            msg (PoseWithCovarianceStamped): The pose amcl publishes which includes position
+                                             and orientation estimates as well as their correlation to the laser scans
+        """
         rospy.loginfo("AMCL Callback Responding")
         covariance = msg.pose.covariance
         position_variance = covariance[0] + covariance[7]
@@ -33,13 +39,10 @@ class Localization:
 
         position_threshold = 0.03  # meters
         orientation_threshold = 0.04# radians
-        var_msg = Vector3()
-        var_msg.x = position_variance
-        var_msg.y = orientation_variance
-        var_msg.z = 0
-        self.variance_pub.publish(var_msg)
+        
         rospy.loginfo(f"Position Variance: {position_variance}, Orientation Variance: {orientation_variance}")
 
+        # If within the certainty threshold send true; otherwise false
         if position_variance < position_threshold and orientation_variance < orientation_threshold:
             rospy.loginfo("Localization is ready, publishing True.")
             msg = Bool()
@@ -52,11 +55,27 @@ class Localization:
             self.localization_ready_pub.publish(msg)
 
     def final_goal_callback(self, msg:PoseStamped):
+        """
+        Callback function for recieving nav goal messages from rviz
+
+        Args:
+            msg (PoseStamped): the pose and orientation that the robot needs to go to after localizing
+        """
         rospy.loginfo("Sending Location")
         self.final_point = msg
         self.final_point_pub.publish(self.final_point)
 
     def load_yaml_map(self, file_path, pgm_file_path):
+        """
+        Loads saved yaml file
+
+        Args:
+            file_path: yaml file path
+            pgm_file_path : pgm file path
+
+        Returns:
+            Occupancy Grid: saved map
+        """
         with open(file_path, 'r') as file:
             map_data = yaml.safe_load(file)
         
@@ -84,6 +103,15 @@ class Localization:
         return loaded_map
     
     def load_pgm_image(self, pgm_file_path):
+        """
+        Loads pgm file
+
+        Args:
+            pgm_file_path location of file
+
+        Returns:
+            grid data : pgm file data
+        """
         image = Image.open(pgm_file_path)
         image = image.convert('L')  # makes sure its grayscale
 
