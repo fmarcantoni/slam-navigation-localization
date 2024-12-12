@@ -20,25 +20,20 @@ class Lab3_Listener:
         Class constructor
         """
         rospy.init_node('Lab3_Listener')
-        rospy.Subscriber('/odom', Odometry, self.update_odom)
+        rospy.Subscriber('/odom', Odometry, self.update_odometry)
         rospy.Subscriber('/move_base_simple/centroid_goal', PoseStamped, self.activate_service)
         rospy.Subscriber('/move_base_simple/localization_goal', PoseStamped, self.activate_service_local)
         rospy.Subscriber("/localization_ready", Bool, self.readyCallback)
         self.ready = False
         self.local_goal = PoseStamped()
         
-        self.listener = tf.TransformListener()
+        # self.listener = tf.TransformListener()
 
         # attributes
         Lab3_Listener.px = 0
         Lab3_Listener.py = 0
         Lab3_Listener.quart = 0
 
-        self.pthQ = Quaternion()
-        self.pthQ.x = 0
-        self.pthQ.y = 0
-        self.pthQ.z = 1
-        self.pthQ.w = 1
 
     def update_odom(self, msg: Odometry) -> None:
         ps = PoseStamped()

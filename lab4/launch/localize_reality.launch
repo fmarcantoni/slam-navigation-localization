@@ -12,7 +12,11 @@
     
     <!-- Load Map From Phase 1 
         REMEMBER TO CHANGE FILE PATH IN LOCALIZATION.PY ALSO-->
+<<<<<<< HEAD
     <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/final_map.yaml"/>
+=======
+    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/larger_mini.yaml"/>
+>>>>>>> parent of 6637ad7... more phase3
 
     <!-- TurtleBot3 -->
     <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
