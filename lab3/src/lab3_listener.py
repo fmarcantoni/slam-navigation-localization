@@ -15,9 +15,11 @@ class Lab3_Listener:
     
     def __init__(self):
         """
-        Class constructor
+        Class constructor for the initialization of the Lab3_Listener node.
         """
         rospy.init_node('Lab3_Listener')
+
+        # Create Subscribers in order to activate the service and to update the odometry values.
         rospy.Subscriber('/odom', Odometry, self.update_odometry)
         rospy.Subscriber('/move_base_simple/centroid_goal', PoseStamped, self.activate_service)
         rospy.Subscriber('/move_base_simple/localization_goal', PoseStamped, self.activate_service_local)
@@ -44,7 +46,7 @@ class Lab3_Listener:
         """
         plan_path = rospy.ServiceProxy('plan_path', GetPlan)
 
-        print("hello! service should be active")
+        rospy.loginfo("Service got the centroid. It's about to pass it to path planner node")
         
         start = PoseStamped()
         start.pose.position.x = self.px
@@ -53,7 +55,7 @@ class Lab3_Listener:
         start.pose.orientation = self.quart
 
         goal = msg
-
+        rospy.wait_for_service('plan_path')
         plan_path(start, goal, 1)
     
     def activate_service_local(self, msg: PoseStamped):

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import rospy
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Vector3
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Vector3, PoseStamped, Vector3
 from std_msgs.msg import Bool
 from nav_msgs.msg import OccupancyGrid
+import yaml
+from PIL import Imagefrom nav_msgs.msg import OccupancyGrid
 import yaml
 from PIL import Image
 
@@ -13,6 +15,7 @@ class Localization:
         Class constructor
         """
         rospy.init_node('localization_check', log_level=rospy.INFO)
+        rospy.loginfo("INIT CHECK", log_level=rospy.INFO)
         rospy.loginfo("INIT CHECK")
         rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped, self.amcl_callback)
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.final_goal_callback)
@@ -44,6 +47,10 @@ class Localization:
 
         # If within the certainty threshold send true; otherwise false
         if position_variance < position_threshold and orientation_variance < orientation_threshold:
+            rospy.loginfo("Localization is ready, publishing True.")
+            msg = Bool()
+            msg.data = True
+            self.localization_ready_pub.publish(msg)
             rospy.loginfo("Localization is ready, publishing True.")
             msg = Bool()
             msg.data = True
@@ -123,6 +130,10 @@ class Localization:
     def run(self):
         rospy.spin()
 
+
+if __name__ == '__main__':
+    localization_instance = Localization()
+    localization_instance.run()
 
 if __name__ == '__main__':
     localization_instance = Localization()

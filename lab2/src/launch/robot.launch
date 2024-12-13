@@ -1,0 +1,8 @@
+
+<launch>
+    <!-- rosaunch turtlebot3_bringup turtlebot3_model.launch -->
+    <include file="$(find turtlebot3_bringup)/launch/turtlebot3_model.launch" />
+    <!-- rosrun lab2 lab2.py -->
+    <node pkg = "lab2" name="lab2" type="lab2.py"> </node>
+
+</launch>
