@@ -38,11 +38,8 @@ class Lab2:
         self.are_we_moving = rospy.Publisher('/are_we_moving', Twist, queue_size=10)
         #Subscriber that gets paths that PathPlannercalculates
         rospy.Subscriber("/path_planner/actual_path_viz", Path, self.go_to_destination)
-
-
-        #for avoiding wall collisions
-        # self.scan_laser = rospy.Subscriber("/scan", LaserScan, self.backoff_wall)
-        self.saved_map_sub = rospy.Subscriber("/map/saved", Bool, self.update_going_home)
+        rospy.Subscriber("/localization_ready", Bool, self.readyCallback)
+        rospy.Subscriber("/move_base_simple/localization_goal", PoseStamped, self.local_move)
 
         #init attributes
         self.px = 0
@@ -139,13 +136,234 @@ class Lab2:
         r = rospy.Rate(10) # 10hz
         r.sleep()
 
-    def go_to_destination(self, msg: Path):
+    def readyCallback(self, msg:Bool):
+        self.ready = msg.data
+        if self.ready:
+            self.send_speed(0,0)
+
+    def local_move(self, msg:PoseStamped):
+        if not self.ready:
+            rospy.loginfo("ROTATING")
+            self.rotate(10, 0.4)
+
+    def drive(self, distance: float, linear_speed: float):
         """
-        Callback function to subscriber. 
-        This runs every time that a path is sent from path_planner.py
-        :path that the robot needs to follow
+        Drives the robot in a straight line.
+        :param distance     [float] [m]   The distance to cover.
+        :param linear_speed [float] [m/s] The forward linear speed.
+        """
+        ### REQUIRED CREDIT
+        
+        # get and save current position
+        self.send_speed(0.0, 0.0)
+        init_x = self.px
+        init_y = self.py
+
+        current_distance = 0
+
+        # keep running until reach target distance
+        while distance - current_distance > 0.01:
+            self.send_speed(linear_speed, 0.0)
+            current_x = self.px
+            current_y = self.py
+
+            # calculate distance travelled
+            current_distance = math.sqrt((self.px - init_x) ** 2 + (self.py - init_y) ** 2)
+
+            rospy.sleep(0.05)
+
+        self.send_speed(0.0, 0.0)
+
+
+    def rotate(self, angle: float, aspeed: float):
+        """
+        Rotates the robot around the body center by the given angle.
+        :param angle         [float] [rad]   The distance to cover.
+        :param angular_speed [float] [rad/s] The angular speed.
+        """
+        ### REQUIRED CREDIT
+
+        self.send_speed(0.0, 0.0)
+
+        init_pth = self.pth + math.pi
+
+        target_heading = init_pth + angle
+
+        
+        # checks if the current heading is greater that 2pi. If it is, corrects it to be less than 2pi ...
+        if target_heading > 2*math.pi:
+            while target_heading > 2*math.pi:
+                target_heading = target_heading - 2*math.pi
+        elif target_heading < 0:
+            while target_heading < 0:
+                target_heading = target_heading + 2*math.pi
+
+
+        current_heading = 0
+
+        while abs(target_heading - current_heading) > 0.1:
+            self.send_speed(0.0, aspeed)
+            current_heading = self.pth + math.pi
+            rospy.sleep(0.05)
+
+        self.send_speed(0.0,0.0)
+
+
+    def go_to(self, msg: PoseStamped):
+        """
+        Calls rotate(), drive(), and rotate() to attain a given pose.
+        This method is a callback bound to a Subscriber.
+        :param msg [PoseStamped] The target pose.
+        """
+        ### REQUIRED CREDIT
+
+        # stores the initial pose
+        self.send_speed(0.0, 0.0)
+        current_x = self.px
+        current_y = self.py
+        current_heading = self.pth
+
+        # extract final pose of the robot
+        target_x = msg.pose.position.x
+        target_y = msg.pose.position.y
+        (roll, pitch, yaw) = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
+        target_heading = yaw
+
+        # find the first heading we are going to rotate to (then drive in straight line)
+
+        first_heading = math.atan2((target_y - current_y),(target_x - current_x))
+        
+        first_angle = first_heading - current_heading
+
+        if first_heading > current_heading:
+            if first_angle < math.pi:
+                rotate_speed = 1
+            else:
+                rotate_speed = -1
+        elif first_heading < current_heading:
+            if first_angle < -1*math.pi:
+                rotate_speed = 1
+            else: 
+                rotate_speed = -1
+
+        self.rotate(first_angle, rotate_speed)
+
+        travel_distance = math.sqrt((target_x - current_x) ** 2 + (target_y - current_y) ** 2)
+
+        self.drive(travel_distance, 0.1)
+
+        final_angle = target_heading - self.pth
+
+        if target_heading > current_heading:
+            if final_angle < math.pi:
+                rotate_speed = 0.5
+            else:
+                rotate_speed = -0.5
+        elif target_heading < current_heading:
+            if final_angle < -1*math.pi:
+                rotate_speed = 0.5
+            else: 
+                rotate_speed = -0.5
+
+        self.rotate(final_angle, rotate_speed)
+
+    def go_to_pure(self, msg: PoseStamped):
+        # stores the initial pose
+        #self.send_speed(1.0, 0.0)
+        current_x = self.px
+        current_y = self.py
+        current_heading = self.pth
+
+        # extract final pose of the robot
+        target_x = msg.pose.position.x
+        target_y = msg.pose.position.y
+        (roll, pitch, yaw) = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
+        target_heading = yaw
+
+        kp_linear = 0.1
+        kp_turn = 0.1
+        print("target_x - current_x")
+        print( target_x - current_x )
+
+        print("target_y - current_y")
+        print( target_y - current_y )
+
+        print("arget_heading - current_heading")
+        print(target_heading - current_heading)
+
+        #while (abs(target_x - current_x) >= 0.02) and (abs(target_y - current_y) >= 0.02) and (abs(target_heading - current_heading) >= 0.02):
+        while True:
+             
+            current_x = self.px
+            current_y = self.py
+            current_heading = self.pth
+
+            linear_error = math.sqrt((target_x - current_x)**2 + (target_y - current_y)**2)
+            absTargetAngle = math.atan2(target_y - current_y, target_x - current_x)
+            absPoseAngle = target_heading - current_heading
+
+            # if absTargetAngle < -1*math.pi:
+            #     absTargetAngle += 2 * math.pi
+            # elif absTargetAngle > math.pi:
+            #     absTargetAngle -= 2 * math.pi
+
+            # if absPoseAngle < -1*math.pi:
+            #     absPoseAngle += 2 * math.pi
+            # elif absPoseAngle > math.pi:
+            #     absPoseAngle -= 2 * math.pi
+
+
+            if absTargetAngle < 0:
+                absTargetAngle += 2 * math.pi
+            if absPoseAngle < 0:
+                absPoseAngle += 2 * math.pi
+
+            # absTargetAngle %= (2 * math.pi)
+            # absPoseAngle %= (2 * math.pi)
+
+            
+
+            alpha = min(1, linear_error)
+
+            angular_error = alpha * absTargetAngle + (1-alpha) * absPoseAngle
+
+            print("linear and turn errors: ")
+            print(linear_error)
+            print(" ")
+            print(angular_error)
+
+            #linearVel = min(linear_error*kp_linear, 10)
+            linearVel = linear_error*kp_linear
+            angularVel = angular_error*kp_turn
+
+            print("Linear velocity: ")
+            print(linearVel)
+
+            print("angular velocity: ")
+            print(angularVel)
+
+            self.send_speed(linearVel, angularVel)
+
+            if (abs(target_x - current_x) <= 0.02) and (abs(target_y - current_y) <= 0.02) and (abs(target_heading - current_heading) <= 0.02):
+                break
+
+
+
+        """
+        //compute linear error
+        linearVel = sqrt(pow(tergety - currenty, 2) + pow(tergetx - currentx, 2))
+
+        //compute turn error
+        absTargetAngle = atan2(targety - currenty, targetx - currentx)
+        if absTargetAngle < 0 : absTargetAngle += 360
+        turnError = find_min_angle(absTargetAngle, currentHeading)
+
+        //compute linear and turn velocities using controller of your choice
+
+        //send command to motors
         """
 
+    def go_to_destination(self, msg: Path):
         print("New Destination Received")
 
         coordinatesInPath = []

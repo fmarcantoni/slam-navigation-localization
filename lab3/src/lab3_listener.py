@@ -8,6 +8,7 @@ from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
 from tf.transformations import euler_from_quaternion
+from std_msgs.msg import Bool
 
 #!/usr/bin/env pythons
 class Lab3_Listener:
@@ -21,12 +22,20 @@ class Lab3_Listener:
         # Create Subscribers in order to activate the service and to update the odometry values.
         rospy.Subscriber('/odom', Odometry, self.update_odometry)
         rospy.Subscriber('/move_base_simple/centroid_goal', PoseStamped, self.activate_service)
+        rospy.Subscriber('/move_base_simple/localization_goal', PoseStamped, self.activate_service_local)
+        rospy.Subscriber("/localization_ready", Bool, self.readyCallback)
+        self.ready = False
+        self.local_goal = PoseStamped()
 
         # attributes
         Lab3_Listener.px = 0
         Lab3_Listener.py = 0
         Lab3_Listener.quart = 0
-        rospy.sleep(1.0)
+    
+    def readyCallback(self, msg:Bool):
+        self.ready = msg.data
+        if self.ready:
+            self.activate_service_local(self.local_goal)
 
     def activate_service(self, msg: PoseStamped):
         """
@@ -48,6 +57,21 @@ class Lab3_Listener:
         goal = msg
         rospy.wait_for_service('plan_path')
         plan_path(start, goal, 1)
+    
+    def activate_service_local(self, msg: PoseStamped):
+        self.local_goal = msg
+        if self.ready:
+            plan_path = rospy.ServiceProxy('plan_path', GetPlan)
+
+            print("hello! service should be active")
+            
+            start = PoseStamped()
+            start.pose.position.x = self.px
+            start.pose.position.y = self.py
+            start.pose.position.z = 0
+            start.pose.orientation = self.quart
+
+            plan_path(start, self.local_goal, 1)
 
     def update_odometry(self, msg: Odometry):
         """

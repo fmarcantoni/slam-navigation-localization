@@ -1,5 +1,10 @@
 <launch>
-    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/amcl_map.yaml"/>
+    
+    <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+    
+    <!-- Load Map From Phase 1 
+        REMEMBER TO CHANGE FILE PATH IN LOCALIZATION.PY ALSO-->
+    <node pkg="map_server" type="map_server" name="map_server" output="screen" args="$(find lab4)/maps/final_map.yaml"/>
 
     <!-- TurtleBot3 -->
     <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
@@ -11,9 +16,12 @@
         <arg name="model" value="burger"/>
         <arg name="world" value="turtlebot"/>
     </include>
- 
+
+    <!-- Gazebo World -->
+    <!-- <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch" /> -->
+
     <!-- Rviz -->
-    <node pkg="rviz" type="rviz" name="rviz" output="screen"/>
+    <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find lab4)/rviz/localizationConfig.rviz"/>
  
     <!-- Launch path planner -->
     <node name="path_planner" pkg="lab3" type="path_planner.py" output="screen" args="-d $(find lab4)/rviz/gmappingConfig.rviz"/>
@@ -22,10 +30,45 @@
     <node name="lab3_listener" pkg="lab3" type="lab3_listener.py" />
  
     <!-- Pure Pursuit Node -->
-    <node name="lab2" pkg="lab2" type="lab2.py" />
+    <node name="lab2" pkg="lab2" type="lab2_phase3.py" />
+
+    <!-- Localization Node -->
+    <node name="localization_check" pkg="lab4" type="localization.py" output="screen"/>
 
     <!-- AMCL -->
-    <node name="amcl" pkg="amcl" type="amcl" output="screen" />
-    <node name="localization_check" pkg="lab4" type="localization.py" />
+    <node pkg="amcl" type="amcl" name="amcl" output="screen">
+        <!-- Publish scans from best pose at a max of 10 Hz -->
+        <param name="odom_model_type" value="diff-corrected"/>
+        <param name="odom_alpha5" value="0.1"/>
+        <param name="gui_publish_rate" value="10.0"/>
+        <param name="laser_max_beams" value="70"/>
+        <param name="min_particles" value="1000"/>
+        <param name="max_particles" value="5000"/>
+        <param name="kld_err" value="0.01"/>
+        <param name="kld_z" value="0.99"/>
+        <param name="odom_alpha1" value="0.005"/>
+        <param name="odom_alpha2" value="0.005"/>
+        <!-- translation std dev, m -->
+        <param name="odom_alpha3" value="0.01"/>
+        <param name="odom_alpha4" value="0.01"/>
+        <param name="laser_z_hit" value="0.95"/>
+        <param name="laser_z_short" value="0.1"/>
+        <param name="laser_z_max" value="0.05"/>
+        <param name="laser_z_rand" value="0.08"/>
+        <param name="laser_sigma_hit" value="0.2"/>
+        <param name="laser_lambda_short" value="0.1"/>
+
+        <!-- Keep this param -->
+        <param name="laser_model_type" value="beam"/> 
+
+        <param name="laser_likelihood_max_dist" value="5.0"/>
+        <param name="update_min_d" value="0.05"/>
+        <param name="update_min_a" value="0.1"/>
+        <param name="odom_frame_id" value="odom"/>
+        <param name="resample_interval" value="1"/>
+        <param name="transform_tolerance" value="0.1"/>
+        <param name="recovery_alpha_slow" value="0.005"/>
+        <param name="recovery_alpha_fast" value="0.1"/>   
+    </node>
  
 </launch>
