@@ -1,4 +1,4 @@
-# Autonomous Navigation, SLAM, and Localization
+# Autonomous Navigation & SLAM for TurtleBot3
 
 This project explored a complete mobile-robot navigation pipeline for a TurtleBot3 in a maze-like environment. The robot used onboard sensing and odometry to build an occupancy-grid map of an unknown space, then autonomously explored the environment, planned collision-free paths, and navigated to requested goals. The system was developed in ROS and demonstrated in Gazebo and RViz.
 
