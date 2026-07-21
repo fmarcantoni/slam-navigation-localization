@@ -6,9 +6,7 @@ The implementation combines several classic robotics components: SLAM-based mapp
 
 ## Demo
 
-<video controls width="100%">
-  <source src="docs/media/slam-navigation-demo.mp4" type="video/mp4">
-</video>
+[![TurtleBot3 autonomous navigation demonstration](docs/media/slam-navigation-demo-poster.jpg)](docs/media/slam-navigation-demo.mp4)
 
 The clip shows the robot navigating in simulation while the map, planned path, and exploration behavior are visualized in RViz.
 
@@ -23,25 +21,19 @@ The clip shows the robot navigating in simulation while the map, planned path, a
 
 ## System Overview
 
-LiDAR and odometry
-        ↓
-SLAM and occupancy-grid mapping
-        ↓
-Frontier detection
-        ↓
-Configuration-space processing
-        ↓
-A* path planning
-        ↓
-Path following and robot control
+- LiDAR and odometry
+- SLAM and occupancy-grid mapping
+- Frontier detection
+- Configuration-space processing
+- A* path planning
+- Path following and robot control
 
-Saved map and sensor data
-        ↓
-AMCL localization
-        ↓
-Pose estimate
-        ↓
-Goal planning and navigation
+### Localization flow
+
+- Saved map and sensor data
+- AMCL localization
+- Pose estimate
+- Goal planning and navigation
 
 ## Main Components
 
