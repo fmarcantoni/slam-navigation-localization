@@ -1,4 +1,25 @@
-beginner_tutorials/
-learning_tf/
-robot_setup_tf/
-turtlebot3_simulations/
+# ROS / catkin
+build/
+devel/
+install/
+log/
+logs/
+.catkin_tools/
+.ros/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating systems
+.DS_Store
+Thumbs.db
