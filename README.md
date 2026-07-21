@@ -6,7 +6,9 @@ The implementation combines several classic robotics components: SLAM-based mapp
 
 ## Demo
 
-![TurtleBot3 autonomous navigation demonstration](docs/media/slam-navigation-demo.gif)
+<video controls width="100%">
+  <source src="docs/media/slam-navigation-demo.mp4" type="video/mp4">
+</video>
 
 The clip shows the robot navigating in simulation while the map, planned path, and exploration behavior are visualized in RViz.
 
@@ -93,4 +95,4 @@ Gazebo simulates the TurtleBot3 and maze environment, while RViz displays the ge
 
 ## Team and Course Context
 
-This project was developed as a team effort for RBE 3002 – Unified Robotics IV at Worcester Polytechnic Institute. The work was originally organized under RBE300X-Lab/RBE3002_B24_Team02 and later preserved in this repository where the main contributors included Filippo Marcantoni, Lorenzo Manfredi Segato, Pau Alcolea, and Oliver Van Campen.
+This project was developed as a team effort for RBE 3002 – Unified Robotics IV at Worcester Polytechnic Institute. The work was originally organized under RBE300X-Lab/RBE3002_B24_Team02.
